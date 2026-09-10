@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ingresar · Credixpertos</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<style>
+:root{ --brand:#0A2540; --brand2:#1a3d5c; --cyan:#00B4C8; --text:#1C1C2E; --muted:#6B7280; --border:#E2D9CF; --red:#991B1B; --red-bg:#FEE2E2; }
+*{box-sizing:border-box;}
+body{margin:0;font-family:'DM Sans',-apple-system,sans-serif;background:linear-gradient(135deg,var(--brand),var(--brand2));min-height:100vh;display:flex;align-items:center;justify-content:center;color:var(--text);}
+.card{background:white;border-radius:18px;padding:36px 32px;width:100%;max-width:360px;box-shadow:0 20px 50px -20px rgba(0,0,0,0.5);}
+.tag{font-size:10.5px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--cyan);margin-bottom:6px;}
+h1{font-family:Georgia,serif;font-size:22px;margin:0 0 20px;font-weight:400;color:var(--brand);}
+label{display:block;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;}
+input{width:100%;font-size:14px;padding:10px 12px;border:1px solid var(--border);border-radius:8px;margin-bottom:16px;}
+input:focus{outline:2px solid var(--cyan);border-color:var(--cyan);}
+button{width:100%;background:var(--brand);color:white;border:none;border-radius:20px;padding:12px;font-weight:700;font-size:13px;cursor:pointer;}
+button:disabled{opacity:.6;cursor:default;}
+.error{background:var(--red-bg);color:var(--red);padding:10px 12px;border-radius:8px;font-size:12.5px;margin-bottom:16px;display:none;}
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="tag">Credixpertos</div>
+    <h1>Sistema de puntos</h1>
+    <div class="error" id="errorBox"></div>
+    <form id="formLogin">
+      <label>Correo</label>
+      <input type="email" id="email" required autocomplete="username">
+      <label>Contraseña</label>
+      <input type="password" id="clave" required autocomplete="current-password">
+      <button type="submit" id="btnEntrar">Ingresar</button>
+    </form>
+  </div>
+
+<script src="config.js"></script>
+<script>
+// Si ya hay sesión abierta, no mostramos el login — vamos directo a su pantalla.
+(async ()=>{
+  try{
+    const { data:{ session } } = await supabase.auth.getSession();
+    if(session){
+      const { data: perfil } = await supabase.from('perfiles').select('rol').eq('id', session.user.id).single();
+      if(perfil) window.location.href = perfil.rol + '.html';
+    }
+  }catch(err){
+    console.error('Error verificando sesión existente:', err);
+  }
+})();
+
+document.getElementById('formLogin').addEventListener('submit', async (e)=>{
+  e.preventDefault();
+  const btn = document.getElementById('btnEntrar');
+  const errorBox = document.getElementById('errorBox');
+  errorBox.style.display = 'none';
+  btn.disabled = true; btn.textContent = 'Ingresando...';
+
+  try{
+    const email = document.getElementById('email').value.trim();
+    const clave = document.getElementById('clave').value;
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password: clave });
+
+    if(error){
+      errorBox.textContent = 'Correo o contraseña incorrectos. (Detalle: ' + error.message + ')';
+      errorBox.style.display = 'block';
+      btn.disabled = false; btn.textContent = 'Ingresar';
+      return;
+    }
+    const { data: perfil, error: errPerfil } = await supabase
+      .from('perfiles').select('rol, activo').eq('id', data.user.id).single();
+    if(errPerfil || !perfil || !perfil.activo){
+      errorBox.textContent = 'Tu usuario no tiene acceso activo. Habla con el administrador.' + (errPerfil ? ' (Detalle: '+errPerfil.message+')' : '');
+      errorBox.style.display = 'block';
+      await supabase.auth.signOut();
+      btn.disabled = false; btn.textContent = 'Ingresar';
+      return;
+    }
+    window.location.href = perfil.rol + '.html';
+  }catch(err){
+    // Cualquier problema inesperado (de red, de conexión, etc.) se
+    // muestra aquí en vez de dejar el botón pensando para siempre.
+    errorBox.textContent = 'Ocurrió un error inesperado: ' + (err && err.message ? err.message : err);
+    errorBox.style.display = 'block';
+    btn.disabled = false; btn.textContent = 'Ingresar';
+  }
+});
+</script>
+</body>
+</html>
