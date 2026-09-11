@@ -22,9 +22,19 @@ function fmtMoney(n){ return '$' + Math.round(n||0).toLocaleString('es-CO'); }
 function fmtNum(n){ return Math.round(n||0).toLocaleString('es-CO'); }
 function parseMonto(v){
   if(v===null||v===undefined) return 0;
-  const limpio = String(v).trim().replace(/[.,\s]/g, '');
+  const limpio = String(v).trim().replace(/[$.,\s]/g, '');
   const n = parseInt(limpio, 10);
   return isNaN(n) ? 0 : n;
+}
+// Un input de texto que MUESTRA "$1.234.567" pero guarda/lee el
+// número limpio — se usa en todos los campos que son plata (monto,
+// entidad paga, valor del punto, garantizados). Reformatea el campo
+// apenas el usuario sale de él, y devuelve el número limpio para
+// guardar en la base de datos.
+function reformatearInputDinero(el){
+  const limpio = parseMonto(el.value);
+  el.value = fmtMoney(limpio);
+  return limpio;
 }
 function millonesEnteros(monto){ return Math.floor(parseMonto(monto) / 1000000); }
 function hoyISO(){ return new Date().toISOString().slice(0,10); }
