@@ -60,11 +60,16 @@ async function cerrarSesion(){
 // ---- Trae la configuración de niveles/tarifas vigente HOY ----
 // (la más reciente cuya fecha de vigencia ya llegó). Así todas las
 // pantallas usan siempre la misma "foto" del presente.
+// Ordena también por created_at como desempate: si guardaste dos
+// versiones el mismo día (por ejemplo corrigiendo algo), sin este
+// desempate el orden entre ellas queda indefinido y a veces "gana"
+// la vieja por error — con created_at siempre gana la más reciente.
 async function configVigente(){
   const { data, error } = await supabase
     .from('config_niveles_historial').select('*')
     .lte('vigente_desde', hoyISO())
     .order('vigente_desde', { ascending:false })
+    .order('created_at', { ascending:false })
     .limit(1).single();
   if(error) return null;
   return data;
@@ -74,7 +79,8 @@ async function tarifasOrigenVigentes(){
   const { data, error } = await supabase
     .from('tarifas_origen_historial').select('*')
     .lte('vigente_desde', hoyISO())
-    .order('vigente_desde', { ascending:false });
+    .order('vigente_desde', { ascending:false })
+    .order('created_at', { ascending:false });
   if(error) return {};
   const resultado = {};
   data.forEach(fila=>{ if(!(fila.origen in resultado)) resultado[fila.origen] = fila; });
