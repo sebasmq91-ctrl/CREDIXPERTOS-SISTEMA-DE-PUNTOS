@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mi trabajo · Analista · Credixpertos</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<style>
+:root{ --brand:#0A2540; --brand2:#1a3d5c; --cyan:#00B4C8; --cyan-light:#E6F8FA; --gold-light:#FEF3C7; --text:#1C1C2E; --muted:#6B7280; --border:#E2D9CF; }
+*{box-sizing:border-box;}
+body{margin:0;font-family:'DM Sans',-apple-system,sans-serif;color:var(--text);background:#EEF1F6;}
+.wrap{max-width:1300px;margin:0 auto;padding:24px 28px 60px;}
+.hero{background:linear-gradient(135deg,var(--brand),var(--brand2));border-radius:16px;padding:22px 26px;margin-bottom:20px;color:white;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:14px;}
+.hero .tag{font-size:10.5px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--cyan);}
+.hero h1{font-family:Georgia,serif;font-size:22px;margin:2px 0 0;font-weight:400;}
+.btn{font-family:'DM Sans',sans-serif;font-weight:700;font-size:12px;border:none;border-radius:20px;padding:8px 15px;cursor:pointer;}
+.btn-primary{background:var(--brand);color:white;}
+.btn-ghost{background:var(--cyan-light);color:#0a5c6e;}
+.btn-gold{background:var(--gold-light);color:#92400E;}
+.btn-salir{background:rgba(255,255,255,0.15);color:white;}
+.card{background:white;border:1px solid var(--border);border-radius:14px;padding:20px 22px;margin-bottom:18px;}
+.card h2{font-family:Georgia,serif;font-size:16px;color:var(--brand);margin:0 0 4px;font-weight:400;}
+.sub{font-size:12px;color:var(--muted);margin:0 0 14px;}
+table{width:100%;border-collapse:collapse;font-size:12.5px;}
+th{background:var(--brand);color:white;padding:8px;text-align:left;font-weight:500;font-size:10.5px;text-transform:uppercase;}
+td{padding:10px 10px;border-bottom:1px solid var(--border);}
+input,select{font-family:'DM Sans',sans-serif;font-size:13.5px;padding:9px 10px;border:1px solid var(--border);border-radius:7px;width:100%;}
+.del-x{background:none;border:none;color:#991B1B;cursor:pointer;font-size:15px;}
+.row-actions{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;}
+.puntos-hero{background:linear-gradient(135deg,var(--brand),var(--brand2));border-radius:14px;padding:24px 28px;color:white;}
+.puntos-hero .lbl{font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--cyan);margin-bottom:6px;}
+.puntos-hero .val{font-family:Georgia,serif;font-size:34px;font-weight:700;}
+.desglose{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:16px;padding-top:16px;border-top:1px solid rgba(255,255,255,0.15);}
+.desglose .item{background:rgba(255,255,255,0.08);border-radius:10px;padding:12px 14px;}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;}
+label{display:block;font-size:10.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;}
+.pill{display:inline-block;font-size:10px;font-weight:700;padding:3px 9px;border-radius:12px;text-transform:uppercase;}
+.pill-rad{background:var(--gold-light);color:#92400E;}
+.pill-des{background:#DCFCE7;color:#166534;}
+.note{background:var(--cyan-light);border:1px solid #67E8F9;color:#0a5c6e;border-radius:10px;padding:11px 14px;font-size:12px;margin-top:14px;line-height:1.5;}
+.print-doc{display:none;}
+@media print{ body>.wrap{display:none;} .print-doc.imprimir-activo{display:block;} }
+</style>
+</head>
+<body>
+<div class="wrap" id="app" style="display:none">
+
+  <div class="hero">
+    <div>
+      <div class="tag">Analista de crédito · v3</div>
+      <h1 id="nombreAnalista">Mi trabajo</h1>
+    </div>
+    <button class="btn btn-salir" onclick="cerrarSesion()">Salir</button>
+  </div>
+
+  <!-- MIS CLIENTES (mercado natural propio) -->
+  <div class="card">
+    <h2>1 · Tus créditos radicados (clientes que tú misma traes)</h2>
+    <p class="sub">Esto es solo para los clientes que TÚ consigues por tu cuenta — no para lo que gestionan los asesores. Ganas un porcentaje de la comisión que ese crédito generaría.</p>
+    <table>
+      <thead><tr><th>Fecha</th><th>Cliente</th><th>Cédula</th><th>Monto ($)</th><th>Entidad</th><th>Origen</th><th>Valor est.</th><th></th><th></th></tr></thead>
+      <tbody id="radBody"></tbody>
+    </table>
+    <div class="row-actions"><button class="btn btn-ghost" onclick="addRadicacion()">+ Agregar crédito radicado</button></div>
+  </div>
+
+  <!-- MIS DESEMBOLSADOS -->
+  <div class="card">
+    <h2>2 · Tus créditos desembolsados este mes</h2>
+    <table>
+      <thead><tr><th>Fecha</th><th>Cliente</th><th>Cédula</th><th>Monto ($)</th><th>Entidad</th><th>Origen</th><th>Valor generado</th><th></th></tr></thead>
+      <tbody id="regBody"></tbody>
+    </table>
+  </div>
+
+  <!-- PROGRESO -->
+  <div class="card">
+    <h2>3 · Tu pago este mes</h2>
+    <div class="puntos-hero">
+      <div class="lbl">Total a cobrar este mes</div>
+      <div class="val" id="valorTotal" style="font-size:40px">$0</div>
+      <div class="desglose">
+        <div class="item">
+          <div class="lbl" style="margin-bottom:4px">Por procesar al equipo</div>
+          <div class="val" id="valorEquipo" style="font-size:20px">$0</div>
+          <div style="font-size:11px;color:rgba(255,255,255,0.6);margin-top:4px" id="detalleEquipo">—</div>
+        </div>
+        <div class="item">
+          <div class="lbl" style="margin-bottom:4px">Por tus propios clientes</div>
+          <div class="val" id="valorPropios" style="font-size:20px">$0</div>
+          <div style="font-size:11px;color:rgba(255,255,255,0.6);margin-top:4px" id="detallePropios">—</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CUENTA DE COBRO -->
+  <div class="card">
+    <h2>4 · Genera tu cuenta de cobro</h2>
+    <div class="grid2">
+      <div><label>Nombre completo</label><input type="text" id="ccNombre"></div>
+      <div><label>Cédula</label><input type="text" id="ccCedula"></div>
+      <div><label>Banco</label><input type="text" id="ccBanco"></div>
+      <div><label>Tipo y número de cuenta</label><input type="text" id="ccCuenta" placeholder="Ahorros — 000-000000-00"></div>
+    </div>
+    <div class="row-actions">
+      <button class="btn btn-ghost" onclick="guardarCC()">Guardar mis datos</button>
+      <button class="btn btn-primary" onclick="imprimirCC()">📄 Descargar cuenta de cobro</button>
+    </div>
+    <div class="note">La cuenta de cobro muestra el valor total a pagar — nunca la tarifa por punto ni el porcentaje exacto.</div>
+  </div>
+
+  <!-- VISTA DE TODOS — SOLO LECTURA -->
+  <div class="card">
+    <h2>5 · Seguimiento de todo el equipo (este mes)</h2>
+    <p class="sub">Puedes ver el avance de todos en tiempo real. Esta tabla es solo de consulta — no puedes editarla desde aquí.</p>
+    <table>
+      <thead><tr><th>Asesor / analista</th><th>Cliente</th><th>Cédula</th><th>Estado</th><th>Fecha</th><th>Valor</th></tr></thead>
+      <tbody id="equipoBody"></tbody>
+    </table>
+  </div>
+
+</div>
+
+<div class="print-doc" id="printCC">
+  <div style="max-width:680px;margin:0 auto;padding:30px;font-family:'DM Sans',sans-serif">
+    <div style="background:linear-gradient(135deg,#0A2540,#1a3d5c);color:white;padding:22px 28px;border-radius:12px;margin-bottom:20px">
+      <div style="font-size:11px;font-weight:700;letter-spacing:2px;color:#00B4C8">CREDIXPERTOS</div>
+      <div style="font-family:Georgia,serif;font-size:22px">Cuenta de cobro</div>
+      <div style="font-size:12px;color:rgba(255,255,255,0.65)" id="ccFecha"></div>
+    </div>
+    <table style="width:100%;border-collapse:collapse;margin-bottom:20px">
+      <tr><td style="padding:6px 0;color:#6B7280;font-size:13px;width:35%">Nombre</td><td style="padding:6px 0;font-weight:700;color:#0A2540" id="ccPdfNombre">—</td></tr>
+      <tr><td style="padding:6px 0;color:#6B7280;font-size:13px">Cédula</td><td style="padding:6px 0;font-weight:700;color:#0A2540" id="ccPdfCedula">—</td></tr>
+      <tr><td style="padding:6px 0;color:#6B7280;font-size:13px">Cuenta de pago</td><td style="padding:6px 0;font-weight:700;color:#0A2540" id="ccPdfCuenta">—</td></tr>
+    </table>
+    <table style="width:100%;border-collapse:collapse;margin-bottom:14px">
+      <thead><tr style="background:#0A2540;color:white;font-size:11px"><th style="padding:6px;text-align:left">Cliente</th><th style="padding:6px;text-align:left">Cédula</th><th style="padding:6px;text-align:left">Monto</th><th style="padding:6px;text-align:left">Valor generado</th></tr></thead>
+      <tbody id="ccPdfDetalle"></tbody>
+    </table>
+    <div style="background:#F8F6F1;border-radius:10px;padding:14px 18px">
+      <div style="display:flex;justify-content:space-between;font-size:13px;color:#6B7280"><span>Por procesar al equipo</span><b id="ccPdfEquipo">$0</b></div>
+      <div style="display:flex;justify-content:space-between;font-size:13px;color:#6B7280"><span>Por tus propios clientes</span><b id="ccPdfPropios">$0</b></div>
+      <div style="display:flex;justify-content:space-between;font-size:15px;border-top:1px solid #E2D9CF;padding-top:8px;margin-top:6px"><span style="color:#0A2540;font-weight:700">Valor a pagar</span><b style="color:#0A2540;font-size:20px" id="ccPdfValor">$0</b></div>
+    </div>
+  </div>
+</div>
+
+<script src="config.js"></script>
+<script>
+let PERFIL = null;
+let ENTIDADES = [];
+let PUNTOS_MAPA = {};
+let CFG = null;
+let CC = { nombre:'', cedula:'', banco:'', cuenta:'' };
+let VALOR_PROPIOS_MES = 0; // se guarda aparte para no tener que releer un "$29.000" ya formateado
+
+async function iniciar(){
+  const sesion = await exigirSesion(['analista']);
+  if(!sesion) return;
+  PERFIL = sesion.perfil;
+  document.getElementById('nombreAnalista').textContent = 'Hola, ' + PERFIL.nombre;
+  document.getElementById('app').style.display = '';
+
+  const { data: entidadesData } = await supabase.from('entidades').select('*').eq('activo', true).order('nombre');
+  ENTIDADES = entidadesData || [];
+  CFG = await configVigente();
+  await cargarPuntosMapa();
+
+  const { data: ccData } = await supabase.from('datos_cobro').select('*').eq('perfil_id', PERFIL.id).maybeSingle();
+  if(ccData) CC = ccData;
+  document.getElementById('ccNombre').value = CC.nombre || '';
+  document.getElementById('ccCedula').value = CC.cedula || '';
+  document.getElementById('ccBanco').value = CC.banco || '';
+  document.getElementById('ccCuenta').value = CC.cuenta || '';
+
+  await renderTodo();
+
+  // Vista de equipo en vivo + recalcular su pago si algo cambia — sin
+  // tocar sus propias tablas (esas solo cambian cuando ella misma
+  // edita, evitando perder el foco si alguien más registra algo).
+  supabase.channel('equipo-creditos')
+    .on('postgres_changes', { event:'*', schema:'public', table:'creditos' }, ()=>{ cargarEquipo(); recalcularValorEquipo(); })
+    .subscribe();
+}
+
+async function cargarPuntosMapa(){
+  const { data } = await supabase.from('tarifas_entidad_origen_historial').select('*')
+    .lte('vigente_desde', hoyISO())
+    .order('vigente_desde', { ascending:false })
+    .order('created_at', { ascending:false });
+  const mapa = {};
+  (data||[]).forEach(fila=>{
+    if(!mapa[fila.entidad_id]) mapa[fila.entidad_id] = {};
+    if(!(fila.origen in mapa[fila.entidad_id])) mapa[fila.entidad_id][fila.origen] = fila.puntos_por_millon;
+  });
+  PUNTOS_MAPA = mapa;
+}
+// Estimación de lo que ganaría ELLA por un cliente propio: comisión
+// que generaría como asesor (puntos * valor punto) × su porcentaje.
+function estimarValorPropio(entidadId, origen, monto){
+  const tarifa = (PUNTOS_MAPA[entidadId] || {})[origen];
+  if(tarifa===undefined || !CFG) return null;
+  const comisionComoAsesor = millonesEnteros(monto) * tarifa * CFG.valor_punto;
+  return comisionComoAsesor * ((CFG.porcentaje_analista_mn ?? 40) / 100);
+}
+
+function selectEntidad(valorId){
+  return '<select onchange="cambiarCampo(this,\'entidad_id\')">' +
+    ENTIDADES.map(e=>`<option value="${e.id}" ${e.id===valorId?'selected':''}>${e.nombre}</option>`).join('') + '</select>';
+}
+function selectOrigen(valor){
+  return '<select onchange="cambiarCampo(this,\'origen\')">' +
+    Object.entries(NOMBRES_ORIGEN).map(([k,v])=>`<option value="${k}" ${k===valor?'selected':''}>${v}</option>`).join('') + '</select>';
+}
+
+async function renderTodo(){
+  const { data: radicados } = await supabase.from('creditos').select('*')
+    .eq('titular_id', PERFIL.id).eq('estado', 'radicado').order('created_at');
+  renderRadicados(radicados || []);
+
+  const inicioMes = mesActualISO() + '-01';
+  const { data: desembolsados } = await supabase.from('creditos').select('*')
+    .eq('titular_id', PERFIL.id).eq('estado', 'desembolsado')
+    .gte('fecha_desembolso', inicioMes).order('fecha_desembolso');
+  renderDesembolsados(desembolsados || []);
+
+  const valorPropios = (desembolsados||[]).reduce((s,r)=>s+(+r.puntos_calculados||0),0);
+  VALOR_PROPIOS_MES = valorPropios;
+  document.getElementById('valorPropios').textContent = fmtMoney(valorPropios);
+  document.getElementById('detallePropios').textContent = (desembolsados||[]).length + ' crédito(s) propio(s) este mes';
+
+  await recalcularValorEquipo();
+  await cargarEquipo();
+}
+
+// Su pago fijo por procesar TODO lo que desembolsa el equipo de
+// asesores este mes — no depende de sus propios créditos. Cada
+// crédito de asesor ya trae congelado cuánto le corresponde a ella
+// (tarifa propia de esa entidad, o la tarifa global si no tiene una
+// específica) — aquí solo se suma, no se recalcula nada.
+async function recalcularValorEquipo(){
+  const inicioMes = mesActualISO() + '-01';
+  const { data } = await supabase.from('creditos').select('monto, valor_analista_equipo, perfiles:titular_id(rol)')
+    .eq('estado', 'desembolsado').gte('fecha_desembolso', inicioMes);
+  const deAsesores = (data||[]).filter(c=>c.perfiles?.rol==='asesor');
+  const millonesEquipo = deAsesores.reduce((s,c)=>s+millonesEnteros(c.monto),0);
+  const valorEquipo = deAsesores.reduce((s,c)=>s+(+c.valor_analista_equipo||0),0);
+  document.getElementById('valorEquipo').textContent = fmtMoney(valorEquipo);
+  document.getElementById('detalleEquipo').textContent = fmtNum(millonesEquipo) + ' millones desembolsados por el equipo';
+
+  document.getElementById('valorTotal').textContent = fmtMoney(valorEquipo + VALOR_PROPIOS_MES);
+  return valorEquipo;
+}
+
+function renderRadicados(filas){
+  document.getElementById('radBody').innerHTML = filas.map(r=>{
+    const estimado = estimarValorPropio(r.entidad_id, r.origen, r.monto);
+    return `
+    <tr data-id="${r.id}">
+      <td><input type="date" value="${r.fecha_radicado||''}" onchange="cambiarCampo(this,'fecha_radicado')"></td>
+      <td><input type="text" value="${(r.cliente||'').replace(/"/g,'&quot;')}" onchange="cambiarCampo(this,'cliente')" placeholder="Nombre"></td>
+      <td><input type="text" value="${r.cedula_cliente||''}" onchange="cambiarCampo(this,'cedula_cliente')" placeholder="Cédula"></td>
+      <td><input type="text" inputmode="decimal" value="${r.monto}" onchange="cambiarCampo(this,'monto')"></td>
+      <td>${selectEntidad(r.entidad_id)}</td>
+      <td>${selectOrigen(r.origen)}</td>
+      <td style="font-weight:700;color:var(--brand)" data-estimado-cell="${r.id}">${estimado===null?'—':fmtMoney(estimado)}</td>
+      <td><button class="btn btn-gold" onclick="marcarDesembolsado('${r.id}')">✓ Desembolsó</button></td>
+      <td><button class="del-x" onclick="borrarCredito('${r.id}')">✕</button></td>
+    </tr>`;
+  }).join('') || `<tr><td colspan="9" style="text-align:center;color:var(--muted)">Sin créditos radicados pendientes.</td></tr>`;
+}
+function renderDesembolsados(filas){
+  document.getElementById('regBody').innerHTML = filas.map(r=>`
+    <tr>
+      <td>${r.fecha_desembolso||'—'}</td>
+      <td>${r.cliente||'—'}</td>
+      <td>${r.cedula_cliente||'—'}</td>
+      <td>${fmtMoney(parseMonto(r.monto))}</td>
+      <td>${ENTIDADES.find(e=>e.id===r.entidad_id)?.nombre||'—'}</td>
+      <td>${NOMBRES_ORIGEN[r.origen]||'—'}</td>
+      <td style="font-weight:700;color:var(--brand)">${fmtMoney(r.puntos_calculados)}</td>
+      <td><button class="del-x" onclick="borrarCredito('${r.id}')">✕</button></td>
+    </tr>`).join('') || `<tr><td colspan="8" style="text-align:center;color:var(--muted)">Aún no tienes desembolsos este mes.</td></tr>`;
+}
+async function cargarEquipo(){
+  const inicioMes = mesActualISO() + '-01';
+  const { data: creditos } = await supabase.from('creditos').select('*, perfiles:titular_id(nombre)')
+    .or(`fecha_radicado.gte.${inicioMes},fecha_desembolso.gte.${inicioMes}`)
+    .order('created_at', { ascending:false });
+  document.getElementById('equipoBody').innerHTML = (creditos||[]).map(r=>`
+    <tr>
+      <td>${r.perfiles?.nombre || '—'}</td>
+      <td>${r.cliente||'—'}</td>
+      <td>${r.cedula_cliente||'—'}</td>
+      <td><span class="pill ${r.estado==='desembolsado'?'pill-des':'pill-rad'}">${r.estado==='desembolsado'?'Desembolsado':'Radicado'}</span></td>
+      <td>${r.estado==='desembolsado' ? (r.fecha_desembolso||'—') : (r.fecha_radicado||'—')}</td>
+      <td style="font-weight:700">${r.estado==='desembolsado' ? fmtMoney(r.puntos_calculados) : '—'}</td>
+    </tr>`).join('') || `<tr><td colspan="6" style="text-align:center;color:var(--muted)">Sin movimientos este mes todavía.</td></tr>`;
+}
+
+async function addRadicacion(){
+  const primeraEntidad = ENTIDADES[0]?.id || null;
+  await supabase.from('creditos').insert({
+    titular_id: PERFIL.id, cliente:'', cedula_cliente:'', monto:0,
+    entidad_id: primeraEntidad, origen:'mercado_natural', estado:'radicado', fecha_radicado: hoyISO(),
+  });
+  await renderTodo();
+}
+async function cambiarCampo(el, campo){
+  const fila = el.closest('tr');
+  const id = fila.dataset.id;
+  await supabase.from('creditos').update({ [campo]: el.value }).eq('id', id);
+  if(['monto','entidad_id','origen'].includes(campo)){
+    const monto = fila.querySelector('input[inputmode="decimal"]').value;
+    const entidadId = fila.querySelector('select[onchange*="entidad_id"]').value;
+    const origen = fila.querySelector('select[onchange*="origen"]').value;
+    const estimado = estimarValorPropio(entidadId, origen, monto);
+    const celda = fila.querySelector(`[data-estimado-cell="${id}"]`);
+    if(celda) celda.textContent = estimado===null?'—':fmtMoney(estimado);
+  }
+}
+async function marcarDesembolsado(id){
+  await supabase.from('creditos').update({ estado:'desembolsado', fecha_desembolso: hoyISO() }).eq('id', id);
+  await renderTodo();
+}
+async function borrarCredito(id){
+  if(!confirm('¿Borrar este registro?')) return;
+  await supabase.from('creditos').delete().eq('id', id);
+  await renderTodo();
+}
+
+async function guardarCC(){
+  CC = {
+    perfil_id: PERFIL.id,
+    nombre: document.getElementById('ccNombre').value,
+    cedula: document.getElementById('ccCedula').value,
+    banco: document.getElementById('ccBanco').value,
+    cuenta: document.getElementById('ccCuenta').value,
+  };
+  await supabase.from('datos_cobro').upsert(CC);
+  alert('Datos guardados.');
+}
+async function imprimirCC(){
+  const inicioMes = mesActualISO() + '-01';
+  const { data: desembolsados } = await supabase.from('creditos').select('*')
+    .eq('titular_id', PERFIL.id).eq('estado', 'desembolsado').gte('fecha_desembolso', inicioMes)
+    .order('fecha_desembolso');
+  const filas = desembolsados || [];
+  const valorPropios = filas.reduce((s,r)=>s+(+r.puntos_calculados||0),0);
+  const valorEquipo = await recalcularValorEquipo();
+
+  document.getElementById('ccFecha').textContent = new Date().toLocaleDateString('es-CO',{day:'numeric',month:'long',year:'numeric'});
+  document.getElementById('ccPdfNombre').textContent = CC.nombre || '—';
+  document.getElementById('ccPdfCedula').textContent = CC.cedula || '—';
+  document.getElementById('ccPdfCuenta').textContent = (CC.banco||'—') + ' · ' + (CC.cuenta||'—');
+  document.getElementById('ccPdfEquipo').textContent = fmtMoney(valorEquipo);
+  document.getElementById('ccPdfPropios').textContent = fmtMoney(valorPropios);
+  document.getElementById('ccPdfValor').textContent = fmtMoney(valorEquipo + valorPropios);
+  document.getElementById('ccPdfDetalle').innerHTML = filas.map(r=>`
+    <tr>
+      <td style="padding:5px 6px;border-bottom:1px solid #E2D9CF">${r.cliente||'—'}</td>
+      <td style="padding:5px 6px;border-bottom:1px solid #E2D9CF">${r.cedula_cliente||'—'}</td>
+      <td style="padding:5px 6px;border-bottom:1px solid #E2D9CF">${fmtMoney(parseMonto(r.monto))}</td>
+      <td style="padding:5px 6px;border-bottom:1px solid #E2D9CF">${fmtMoney(r.puntos_calculados)}</td>
+    </tr>`).join('') || `<tr><td colspan="4" style="padding:8px;text-align:center;color:#6B7280">Sin clientes propios desembolsados este mes.</td></tr>`;
+  document.getElementById('printCC').classList.add('imprimir-activo');
+  setTimeout(()=>window.print(), 60);
+  setTimeout(()=>document.getElementById('printCC').classList.remove('imprimir-activo'), 500);
+}
+
+iniciar();
+</script>
+</body>
+</html>
