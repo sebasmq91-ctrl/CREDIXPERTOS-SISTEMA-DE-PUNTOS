@@ -109,3 +109,73 @@ function calcBonoAsesor(totalPuntos, cfg){
   else if(totalPuntos >= cfg.nivel1_pts){ garantizado = cfg.nivel1_bono; nivelAlcanzado = 1; }
   return { comisionVariable, garantizado, bono: comisionVariable+garantizado, nivelAlcanzado };
 }
+
+/* ============================================================
+   COMISIÓN DE EQUIPO DE LA ANALISTA — con umbral por categoría.
+   Los primeros X millones RADICADOS este mes en bancos (o en
+   financieras) son el "colchón" que cubre su salario — no generan
+   nada. Lo que pase de ese umbral, SOLO SI YA SE DESEMBOLSÓ, genera
+   comisión con la tarifa propia de cada entidad específica. Se
+   reinicia cada mes. Editable aquí si el umbral llega a cambiar.
+   ============================================================ */
+const UMBRAL_ANALISTA_MILLONES = { BANCO: 800, FINANCIERA: 300 };
+
+// creditosOrdenados debe venir ordenado por fecha de radicación
+// (created_at asc) — el orden importa porque decide cuáles créditos
+// "llenan" el colchón primero y cuáles quedan en la zona que sí paga.
+function calcularExcedenteYComision(creditosOrdenados, umbralMillones, valorPunto, tarifaPorEntidad){
+  let acumulado = 0, comisionTotal = 0, excedenteTotal = 0;
+  const porCredito = [];
+  creditosOrdenados.forEach(c=>{
+    const millones = millonesEnteros(c.monto);
+    const antes = acumulado;
+    acumulado += millones;
+    const excedente = Math.max(0, acumulado-umbralMillones) - Math.max(0, antes-umbralMillones);
+    excedenteTotal += excedente;
+    let comisionCredito = 0;
+    if(c.estado==='desembolsado' && excedente>0){
+      const tarifa = tarifaPorEntidad[c.entidad_id] || 0;
+      comisionCredito = excedente * tarifa * valorPunto;
+      comisionTotal += comisionCredito;
+    }
+    porCredito.push({ credito:c, excedente, comisionCredito });
+  });
+  return { comisionTotal, excedenteTotal, acumuladoMillones:acumulado, porCredito };
+}
+
+// Trae la tarifa de analista vigente HOY para cada entidad.
+async function mapaTarifaAnalistaPorEntidad(){
+  const { data } = await supabase.from('tarifa_analista_equipo_historial').select('*')
+    .lte('vigente_desde', hoyISO())
+    .order('vigente_desde', { ascending:false })
+    .order('created_at', { ascending:false });
+  const mapa = {};
+  (data||[]).forEach(fila=>{ if(!(fila.entidad_id in mapa)) mapa[fila.entidad_id] = fila.tarifa_por_millon; });
+  return mapa;
+}
+
+// Calcula la comisión de equipo completa (bancos + financieras) para
+// un conjunto de asesores este mes. asesorIds=null cuenta TODOS los
+// asesores (útil para el costo total de la empresa); pasar una lista
+// de ids cuenta solo esos asesores (los asignados a una analista).
+async function calcularComisionEquipoAnalista(asesorIds){
+  const inicioMes = mesActualISO() + '-01';
+  const { data } = await supabase.from('creditos')
+    .select('id, monto, estado, entidad_id, titular_id, created_at, entidades:entidad_id(tipo), perfiles:titular_id(rol)')
+    .or(`fecha_radicado.gte.${inicioMes},fecha_desembolso.gte.${inicioMes}`)
+    .order('created_at', { ascending:true });
+  let creditos = (data||[]).filter(c=>c.perfiles?.rol==='asesor');
+  if(asesorIds) creditos = creditos.filter(c=>asesorIds.includes(c.titular_id));
+
+  const cfg = await configVigente();
+  const tarifaPorEntidad = await mapaTarifaAnalistaPorEntidad();
+  const valorPunto = cfg ? cfg.valor_punto : 0;
+
+  const resultado = {};
+  ['BANCO','FINANCIERA'].forEach(tipo=>{
+    const deEstaCategoria = creditos.filter(c=>c.entidades?.tipo===tipo);
+    resultado[tipo] = calcularExcedenteYComision(deEstaCategoria, UMBRAL_ANALISTA_MILLONES[tipo], valorPunto, tarifaPorEntidad);
+  });
+  const comisionTotal = resultado.BANCO.comisionTotal + resultado.FINANCIERA.comisionTotal;
+  return { comisionTotal, detalle: resultado };
+}

@@ -47,7 +47,7 @@ label{display:block;font-size:10.5px;font-weight:700;color:var(--muted);text-tra
 
   <div class="hero">
     <div>
-      <div class="tag">Analista de crédito · v5</div>
+      <div class="tag">Analista de crédito · v6</div>
       <h1 id="nombreAnalista">Mi trabajo</h1>
     </div>
     <button class="btn btn-salir" onclick="cerrarSesion()">Salir</button>
@@ -234,23 +234,22 @@ async function renderTodo(){
   await cargarEquipo();
 }
 
-// Su pago fijo por procesar los créditos de los asesores QUE TIENE
-// ASIGNADOS (para cuando haya más de una analista, cada una solo
-// gana por sus asesores). Cada crédito de asesor ya trae congelado
-// cuánto le corresponde a ella — aquí solo se suma, no se recalcula.
+// Su pago por procesar los créditos de los asesores QUE TIENE
+// ASIGNADOS, respetando el umbral: los primeros 800M radicados en
+// bancos y 300M en financieras no generan nada — cubren su salario.
+// Lo que pase de ahí, si ya está desembolsado, sí comisiona.
 async function recalcularValorEquipo(){
-  const inicioMes = mesActualISO() + '-01';
-  const { data } = await supabase.from('creditos')
-    .select('monto, valor_analista_equipo, titular_id, perfiles:titular_id(rol, analista_id)')
-    .eq('estado', 'desembolsado').gte('fecha_desembolso', inicioMes);
-  const deMisAsesores = (data||[]).filter(c=>c.perfiles?.rol==='asesor' && c.perfiles?.analista_id===PERFIL.id);
-  const millonesEquipo = deMisAsesores.reduce((s,c)=>s+millonesEnteros(c.monto),0);
-  const valorEquipo = deMisAsesores.reduce((s,c)=>s+(+c.valor_analista_equipo||0),0);
-  document.getElementById('valorEquipo').textContent = fmtMoney(valorEquipo);
-  document.getElementById('detalleEquipo').textContent = fmtNum(millonesEquipo) + ' millones desembolsados por tus asesores asignados';
+  const { data: misAsesores } = await supabase.from('perfiles').select('id').eq('rol','asesor').eq('analista_id', PERFIL.id);
+  const asesorIds = (misAsesores||[]).map(a=>a.id);
+  const { comisionTotal, detalle } = await calcularComisionEquipoAnalista(asesorIds);
 
-  document.getElementById('valorTotal').textContent = fmtMoney(valorEquipo + VALOR_PROPIOS_MES);
-  return valorEquipo;
+  document.getElementById('valorEquipo').textContent = fmtMoney(comisionTotal);
+  document.getElementById('detalleEquipo').textContent =
+    `Bancos: ${fmtNum(detalle.BANCO.acumuladoMillones)} de ${fmtNum(UMBRAL_ANALISTA_MILLONES.BANCO)} millones (umbral) · `
+    + `Financieras: ${fmtNum(detalle.FINANCIERA.acumuladoMillones)} de ${fmtNum(UMBRAL_ANALISTA_MILLONES.FINANCIERA)} millones (umbral)`;
+
+  document.getElementById('valorTotal').textContent = fmtMoney(comisionTotal + VALOR_PROPIOS_MES);
+  return comisionTotal;
 }
 
 function renderRadicados(filas){

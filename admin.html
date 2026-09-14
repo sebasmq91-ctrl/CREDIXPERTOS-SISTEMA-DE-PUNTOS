@@ -53,7 +53,7 @@ label{display:block;font-size:10.5px;font-weight:700;color:var(--muted);text-tra
 
   <div class="hero">
     <div>
-      <div class="tag">Panel de administrador · v11</div>
+      <div class="tag">Panel de administrador · v12</div>
       <h1 id="nombreAdmin">Credixpertos — puntos</h1>
     </div>
     <button class="btn btn-salir" onclick="cerrarSesion()">Salir</button>
@@ -351,6 +351,16 @@ async function actualizarCalculosEntidades(){
   const cfg = await configVigente();
   const desembolsos = await cargarDesembolsosDelMes();
 
+  // Comisión de la analista por entidad, ya con el umbral aplicado —
+  // se calcula una sola vez para todas las entidades juntas.
+  const { detalle } = await calcularComisionEquipoAnalista(null);
+  const analistaPorEntidad = {};
+  ['BANCO','FINANCIERA'].forEach(tipo=>{
+    detalle[tipo].porCredito.forEach(({credito, comisionCredito})=>{
+      analistaPorEntidad[credito.entidad_id] = (analistaPorEntidad[credito.entidad_id]||0) + comisionCredito;
+    });
+  });
+
   let algunaNegativa = null;
   ENTIDADES.forEach(e=>{
     const franja = document.querySelector(`[data-metricas="${e.id}"]`);
@@ -359,9 +369,9 @@ async function actualizarCalculosEntidades(){
     const millones = deEstaEntidad.reduce((s,c)=>s+millonesEnteros(c.monto),0);
     const ingreso = millones * (+e.entidad_paga||0);
     const comisionPagada = cfg ? deEstaEntidad.reduce((s,c)=>s+(+c.puntos_calculados||0),0) * cfg.valor_punto : 0;
-    const margen = ingreso - comisionPagada;
+    const analistaEquipo = analistaPorEntidad[e.id] || 0;
+    const margen = ingreso - comisionPagada - analistaEquipo;
     const margenPct = ingreso>0 ? Math.round(margen/ingreso*100) : null;
-    const analistaEquipo = deEstaEntidad.reduce((s,c)=>s+(+c.valor_analista_equipo||0),0);
     if(margen<0 && !algunaNegativa) algunaNegativa = e.nombre;
     franja.innerHTML = `
       <span>Millones (mes): <b>${fmtNum(millones)}</b></span>
@@ -375,7 +385,7 @@ async function actualizarCalculosEntidades(){
   const warnBox = document.getElementById('warnMargen');
   if(algunaNegativa){
     warnBox.style.display = 'block';
-    warnBox.textContent = `⚠ Este mes, ${algunaNegativa} te está dejando perdiendo dinero en comisión variable (lo que paga la entidad es menor que lo que se le pagó al asesor por esos créditos). Revisa lo que te paga esa entidad o los puntos por origen.`;
+    warnBox.textContent = `⚠ Este mes, ${algunaNegativa} te está dejando perdiendo dinero (lo que paga la entidad es menor que lo que se le paga al asesor + la analista por esos créditos). Revisa lo que te paga esa entidad o las tarifas configuradas.`;
   } else {
     warnBox.style.display = 'none';
   }
@@ -419,26 +429,24 @@ async function cargarRentabilidad(desembolsos, cfg){
   // Costo: lo que se le paga a cada persona este mes. Para asesores,
   // se agrupan sus puntos y se aplica la regla de niveles. La analista
   // tiene DOS componentes: (1) sus propios créditos de mercado natural
-  // — puntos_calculados ya viene en pesos (% de lo que generarían como
-  // asesor) — y (2) valor_analista_equipo, ya congelado por cada crédito
-  // de asesor al momento del desembolso (tarifa propia de esa entidad,
-  // o la tarifa global si no tiene una específica).
+  // — puntos_calculados ya viene en pesos — y (2) la comisión de
+  // equipo con el umbral por categoría (bancos/financieras), sobre
+  // TODOS los asesores (para el costo total de la empresa).
   const puntosPorAsesor = {};
   let costoAnalistaPropios = 0;
-  let costoAnalistaEquipo = 0;
   desembolsos.forEach(c=>{
     const rol = c.perfiles?.rol;
     if(rol==='analista'){ costoAnalistaPropios += (+c.puntos_calculados||0); return; }
     if(rol==='asesor'){
       const id = c.titular_id;
       puntosPorAsesor[id] = (puntosPorAsesor[id]||0) + (+c.puntos_calculados||0);
-      costoAnalistaEquipo += (+c.valor_analista_equipo||0);
     }
   });
   let costoAsesores = 0;
   if(cfg){
     Object.values(puntosPorAsesor).forEach(pts=>{ costoAsesores += calcBonoAsesor(pts, cfg).bono; });
   }
+  const { comisionTotal: costoAnalistaEquipo } = await calcularComisionEquipoAnalista(null); // null = todos los asesores
   const costoTotal = costoAsesores + costoAnalistaPropios + costoAnalistaEquipo;
   const margenGlobal = ingresoTotal - costoTotal;
   const margenPct = ingresoTotal>0 ? Math.round(margenGlobal/ingresoTotal*100) : null;
@@ -547,7 +555,7 @@ async function cargarSeguimiento(){
   // Todas las personas activas aparecen siempre — aunque no tengan
   // ningún crédito propio este mes (por ejemplo la analista, que
   // puede ganar solo por el equipo sin haber radicado nada suyo).
-  const { data: perfilesTodos } = await supabase.from('perfiles').select('id, nombre, rol').eq('activo', true);
+  const { data: perfilesTodos } = await supabase.from('perfiles').select('id, nombre, rol, analista_id').eq('activo', true);
   PERFILES_TODOS = perfilesTodos || [];
   const porPersona = {};
   (perfilesTodos||[]).forEach(p=>{
@@ -556,10 +564,6 @@ async function cargarSeguimiento(){
     }
   });
 
-  // Comisión de equipo por analista asignada (solo créditos de
-  // asesores ya desembolsados) — se suma aparte y se reparte según a
-  // qué analista esté asignado cada asesor.
-  const equipoPorAnalista = {};
   CREDITOS_MES.forEach(r=>{
     const id = r.titular_id;
     if(!porPersona[id]) return; // por si el titular quedó inactivo
@@ -569,12 +573,19 @@ async function cargarSeguimiento(){
       porPersona[id].montoDesembolsado += parseMonto(r.monto);
       porPersona[id].puntosTotal += (+r.puntos_calculados||0);
       if(porPersona[id].rol==='analista') porPersona[id].comisionPropia += (+r.puntos_calculados||0);
-      const analistaId = r.perfiles?.analista_id;
-      if(porPersona[id].rol==='asesor' && analistaId){
-        equipoPorAnalista[analistaId] = (equipoPorAnalista[analistaId]||0) + (+r.valor_analista_equipo||0);
-      }
     }
   });
+
+  // Comisión de equipo por analista, respetando el umbral por
+  // categoría (bancos/financieras) — se calcula aparte, una vez por
+  // cada analista, solo con los asesores que tiene asignados.
+  const equipoPorAnalista = {};
+  const analistas = (perfilesTodos||[]).filter(p=>p.rol==='analista');
+  for(const a of analistas){
+    const asesorIds = (perfilesTodos||[]).filter(p=>p.rol==='asesor' && p.analista_id===a.id).map(p=>p.id);
+    const { comisionTotal } = await calcularComisionEquipoAnalista(asesorIds);
+    equipoPorAnalista[a.id] = comisionTotal;
+  }
 
   // Comisión total a mostrar: para el asesor, el bono con la regla de
   // niveles; para la analista, sus propios créditos + lo del equipo.
@@ -586,7 +597,7 @@ async function cargarSeguimiento(){
       d.equipoAsignado = equipoPorAnalista[id]||0;
     }
   });
-  TOTAL_ANALISTA_EQUIPO_MES = equipoPorAnalista; // objeto por analista_id, no un solo número
+  TOTAL_ANALISTA_EQUIPO_MES = equipoPorAnalista; // objeto por analista_id
 
   document.getElementById('tarjetasPersona').innerHTML = Object.entries(porPersona).map(([id,d])=>`
     <div class="mini-card" style="cursor:pointer" onclick="abrirDetallePersona('${id}')">
