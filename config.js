@@ -36,7 +36,11 @@ function reformatearInputDinero(el){
   el.value = fmtMoney(limpio);
   return limpio;
 }
-function millonesEnteros(monto){ return Math.floor(parseMonto(monto) / 1000000); }
+// Antes se tomaba solo el millón completo (piso) y el resto de miles
+// quedaba como margen interno de Credixpertos. Ahora se cuenta TODO
+// exacto — un crédito de 21.985.641 vale 21,985641 "millones" para
+// cualquier cálculo de puntos, comisión o tarifa por millón.
+function millonesExactos(monto){ return parseMonto(monto) / 1000000; }
 function hoyISO(){ return new Date().toISOString().slice(0,10); }
 function mesActualISO(){ return new Date().toISOString().slice(0,7); } // "2026-09"
 const NOMBRES_ORIGEN = { mercado_natural:'Mercado natural', campana_manual:'Campaña manual', campana_ia:'Campaña IA' };
@@ -127,7 +131,7 @@ function calcularExcedenteYComision(creditosOrdenados, umbralMillones, valorPunt
   let acumulado = 0, comisionTotal = 0, excedenteTotal = 0;
   const porCredito = [];
   creditosOrdenados.forEach(c=>{
-    const millones = millonesEnteros(c.monto);
+    const millones = millonesExactos(c.monto);
     const antes = acumulado;
     acumulado += millones;
     const excedente = Math.max(0, acumulado-umbralMillones) - Math.max(0, antes-umbralMillones);

@@ -217,7 +217,7 @@ async function pygRealMesEnCurso(){
   const filas = desembolsos || [];
   const ingreso = filas.reduce((s,c)=>{
     if(!c.entidades) return s;
-    return s + millonesEnteros(c.monto) * (+c.entidades.entidad_paga||0);
+    return s + millonesExactos(c.monto) * (+c.entidades.entidad_paga||0);
   }, 0);
   const cfg = await configVigente();
   const puntosPorAsesor = {};

@@ -47,7 +47,7 @@ label{display:block;font-size:10.5px;font-weight:700;color:var(--muted);text-tra
 
   <div class="hero">
     <div>
-      <div class="tag">Analista de crédito · v6</div>
+      <div class="tag">Analista de crédito · v7</div>
       <h1 id="nombreAnalista">Mi trabajo</h1>
     </div>
     <button class="btn btn-salir" onclick="cerrarSesion()">Salir</button>
@@ -201,7 +201,7 @@ async function cargarPuntosMapa(){
 function estimarValorPropio(entidadId, origen, monto){
   const entidad = ENTIDADES.find(e=>e.id===entidadId);
   if(!entidad || !CFG) return null;
-  const ingreso = millonesEnteros(monto) * (entidad.entidad_paga||0);
+  const ingreso = millonesExactos(monto) * (entidad.entidad_paga||0);
   return ingreso * ((CFG.porcentaje_analista_mn ?? 40) / 100);
 }
 

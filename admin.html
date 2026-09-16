@@ -53,7 +53,7 @@ label{display:block;font-size:10.5px;font-weight:700;color:var(--muted);text-tra
 
   <div class="hero">
     <div>
-      <div class="tag">Panel de administrador · v13</div>
+      <div class="tag">Panel de administrador · v14</div>
       <h1 id="nombreAdmin">Credixpertos — puntos</h1>
     </div>
     <div style="display:flex;gap:8px">
@@ -369,7 +369,7 @@ async function actualizarCalculosEntidades(){
     const franja = document.querySelector(`[data-metricas="${e.id}"]`);
     if(!franja) return;
     const deEstaEntidad = desembolsos.filter(c=>c.entidad_id===e.id);
-    const millones = deEstaEntidad.reduce((s,c)=>s+millonesEnteros(c.monto),0);
+    const millones = deEstaEntidad.reduce((s,c)=>s+millonesExactos(c.monto),0);
     const ingreso = millones * (+e.entidad_paga||0);
     const comisionPagada = cfg ? deEstaEntidad.reduce((s,c)=>s+(+c.puntos_calculados||0),0) * cfg.valor_punto : 0;
     const analistaEquipo = analistaPorEntidad[e.id] || 0;
@@ -426,7 +426,7 @@ async function cargarRentabilidad(desembolsos, cfg){
   // Ingreso: solo créditos ligados a una entidad (los del asesor).
   const ingresoTotal = desembolsos.reduce((s,c)=>{
     if(!c.entidades) return s;
-    return s + millonesEnteros(c.monto) * (+c.entidades.entidad_paga||0);
+    return s + millonesExactos(c.monto) * (+c.entidades.entidad_paga||0);
   }, 0);
 
   // Costo: lo que se le paga a cada persona este mes. Para asesores,
