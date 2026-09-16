@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>PyG proyectado · Credixpertos</title>
+<title>PyG · Credixpertos</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <style>
 :root{ --brand:#0A2540; --brand2:#1a3d5c; --cyan:#00B4C8; --cyan-light:#E6F8FA; --gold-light:#FEF3C7; --text:#1C1C2E; --muted:#6B7280; --border:#E2D9CF; --green:#166534; --green-bg:#DCFCE7; --red:#991B1B; --red-bg:#FEE2E2; }
@@ -25,6 +25,7 @@ th{background:var(--brand);color:white;padding:8px;text-align:left;font-weight:5
 td{padding:9px 10px;border-bottom:1px solid var(--border);}
 input,select{font-family:'DM Sans',sans-serif;font-size:13px;padding:8px 10px;border:1px solid var(--border);border-radius:7px;width:100%;}
 .row-actions{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
 .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;}
 .grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;}
 label{display:block;font-size:10.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;}
@@ -32,9 +33,9 @@ label{display:block;font-size:10.5px;font-weight:700;color:var(--muted);text-tra
 .mini-card b{display:block;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px;}
 .mini-card .val{font-size:20px;font-weight:700;color:var(--brand);}
 .pos{color:var(--green);} .neg{color:var(--red);}
-.pill{display:inline-block;font-size:9.5px;font-weight:700;padding:3px 8px;border-radius:10px;text-transform:uppercase;}
-.pill-real{background:var(--green-bg);color:var(--green);}
-.pill-proy{background:var(--gold-light);color:#92400E;}
+.progress-track{background:#F3F0EA;border:1px solid var(--border);border-radius:20px;height:22px;position:relative;overflow:hidden;margin-top:8px;}
+.progress-fill{background:linear-gradient(90deg,var(--cyan),#0a8fa0);height:100%;border-radius:20px;transition:width .4s ease;}
+.progress-label{font-size:11px;color:var(--muted);margin-top:6px;}
 .note{background:var(--cyan-light);border:1px solid #67E8F9;color:#0a5c6e;border-radius:10px;padding:11px 14px;font-size:12px;margin-top:14px;line-height:1.5;}
 </style>
 </head>
@@ -43,8 +44,8 @@ label{display:block;font-size:10.5px;font-weight:700;color:var(--muted);text-tra
 
   <div class="hero">
     <div>
-      <div class="tag">Planeación financiera</div>
-      <h1>PyG proyectado — 15 sept a 31 dic 2026</h1>
+      <div class="tag">Planeación financiera · v2</div>
+      <h1>PyG operativo — este mes</h1>
     </div>
     <div style="display:flex;gap:8px">
       <a href="admin.html" class="btn btn-salir" style="text-decoration:none">← Panel admin</a>
@@ -54,64 +55,99 @@ label{display:block;font-size:10.5px;font-weight:700;color:var(--muted);text-tra
 
   <!-- SUPUESTOS -->
   <div class="card">
-    <h2>Supuestos de la proyección</h2>
-    <p class="sub">Ajusta esto libremente — es lo que alimenta todo el resto de la página.</p>
+    <h2>Supuestos</h2>
+    <div class="grid2">
+      <div><label>Meta de desembolso mensual</label><input type="text" inputmode="decimal" id="supVolumen" onblur="reformatearInputDinero(this)"></div>
+      <div><label>% de lo que falta que iría en bancos (resto financieras)</label><input type="number" id="supPctBancos" min="0" max="100"></div>
+    </div>
+    <div class="row-actions"><button class="btn btn-primary" onclick="guardarSupuestos()">Guardar</button></div>
+  </div>
+
+  <!-- GASTOS FIJOS -->
+  <div class="card">
+    <h2>Gastos fijos (mensuales)</h2>
+    <p class="sub">Arriendo, nómina administrativa, software, servicios — lo que se paga igual, haya o no desembolsos.</p>
+    <table>
+      <thead><tr><th style="width:60%">Concepto</th><th style="width:30%">$ mensual</th><th style="width:10%">Activo</th><th></th></tr></thead>
+      <tbody id="fijosBody"></tbody>
+    </table>
+    <div class="row-actions"><button class="btn btn-ghost" onclick="addGasto('gasto_fijo')">+ Agregar gasto fijo</button></div>
+    <div style="margin-top:12px;font-size:13px"><b>Total gastos fijos: <span id="totalFijos">$0</span></b></div>
+  </div>
+
+  <!-- GASTOS VARIABLES -->
+  <div class="card">
+    <h2>Gastos variables (mensuales)</h2>
+    <p class="sub">Lo que cambia según cuánto se mueva ese mes — comisiones bancarias, transporte, imprevistos operativos, etc.</p>
+    <table>
+      <thead><tr><th style="width:60%">Concepto</th><th style="width:30%">$ mensual</th><th style="width:10%">Activo</th><th></th></tr></thead>
+      <tbody id="variablesBody"></tbody>
+    </table>
+    <div class="row-actions"><button class="btn btn-ghost" onclick="addGasto('costo_variable')">+ Agregar gasto variable</button></div>
+    <div style="margin-top:12px;font-size:13px"><b>Total gastos variables: <span id="totalVariables">$0</span></b></div>
+  </div>
+
+  <!-- ESTADO REAL DEL MES -->
+  <div class="card">
+    <h2>Cómo va este mes (real)</h2>
     <div class="grid4">
-      <div><label>Meta neta mensual (EBITDA)</label><input type="text" inputmode="decimal" id="supMetaNeta" onblur="reformatearInputDinero(this)"></div>
-      <div><label>Volumen objetivo a radicar / mes</label><input type="text" inputmode="decimal" id="supVolumen" onblur="reformatearInputDinero(this)"></div>
-      <div><label>% del volumen en bancos (resto financieras)</label><input type="number" id="supPctBancos" min="0" max="100"></div>
-      <div><label>Comisión estimada (% del ingreso, para proyectado)</label><input type="number" id="supTasaComision" min="0" max="100"></div>
+      <div class="mini-card"><b>Ingreso</b><div class="val" id="realIngreso">$0</div></div>
+      <div class="mini-card"><b>Comisiones (asesores + analista)</b><div class="val" id="realComisiones">$0</div></div>
+      <div class="mini-card"><b>Gastos (fijos + variables)</b><div class="val" id="realGastos">$0</div></div>
+      <div class="mini-card"><b>Margen después de todo</b><div class="val" id="realMargen">$0</div></div>
     </div>
-    <div class="row-actions"><button class="btn btn-primary" onclick="guardarSupuestos()">Guardar supuestos</button></div>
-    <div class="note">La comisión REAL de lo ya desembolsado se calcula exacta (igual que en el resto del sistema). Para los meses futuros, como todavía no existen esos créditos, se usa este % estimado sobre el ingreso — ajústalo cuando tengas más historia real para comparar.</div>
+    <div class="note">Margen = Ingreso − Comisiones − Gastos. Es la plata que le queda a Credixpertos este mes después de pagarle a todos.</div>
   </div>
 
-  <!-- GASTOS Y COSTOS -->
+  <!-- COLCHÓN DE COMISIONES -->
   <div class="card">
-    <h2>Gastos y costos operativos (mensuales)</h2>
-    <p class="sub">Todo lo que no sale del sistema de puntos: arriendo, nómina administrativa, software, servicios, etc. Se descuenta cada mes por igual.</p>
-    <table>
-      <thead><tr><th style="width:20%">Categoría</th><th style="width:40%">Concepto</th><th style="width:20%">$ mensual</th><th style="width:10%">Activo</th><th></th></tr></thead>
-      <tbody id="gastosBody"></tbody>
-    </table>
-    <div class="row-actions">
-      <button class="btn btn-ghost" onclick="addGasto('gasto_fijo')">+ Gasto fijo</button>
-      <button class="btn btn-ghost" onclick="addGasto('costo_variable')">+ Costo variable</button>
-    </div>
-    <div style="margin-top:14px;font-size:13px"><b>Total mensual: <span id="totalGastos">$0</span></b></div>
-  </div>
-
-  <!-- PYG MES A MES -->
-  <div class="card">
-    <h2>PyG mes a mes</h2>
-    <p class="sub">🟢 Real = ya sucedió en el sistema. 🟡 Proyectado = con tu meta de volumen y las tasas promedio configuradas.</p>
-    <table>
-      <thead><tr><th>Mes</th><th>Ingreso</th><th>Comisiones</th><th>Gastos operativos</th><th>EBITDA</th></tr></thead>
-      <tbody id="pygBody"></tbody>
-    </table>
-    <div class="grid3" style="margin-top:16px">
-      <div class="mini-card"><b>Ingreso total del periodo</b><div class="val" id="totIngreso">$0</div></div>
-      <div class="mini-card"><b>EBITDA total del periodo</b><div class="val" id="totEbitda">$0</div></div>
-      <div class="mini-card"><b>EBITDA promedio / mes</b><div class="val" id="totEbitdaMes">$0</div></div>
+    <h2>Colchón de comisiones de la analista (este mes)</h2>
+    <p class="sub">Lo que puedes radicar todavía en cada categoría antes de que la analista empiece a comisionar por el equipo — se reinicia cada mes.</p>
+    <div class="grid2">
+      <div class="mini-card">
+        <b>Bancos — radicado vs colchón de 800M</b>
+        <div class="val" id="colchonBancosVal">$0 de $800.000.000</div>
+        <div class="progress-track"><div class="progress-fill" id="colchonBancosFill" style="width:0%"></div></div>
+        <div class="progress-label" id="colchonBancosLbl">—</div>
+      </div>
+      <div class="mini-card">
+        <b>Financieras — radicado vs colchón de 300M</b>
+        <div class="val" id="colchonFinVal">$0 de $300.000.000</div>
+        <div class="progress-track"><div class="progress-fill" id="colchonFinFill" style="width:0%"></div></div>
+        <div class="progress-label" id="colchonFinLbl">—</div>
+      </div>
     </div>
   </div>
 
-  <!-- META REVERSA -->
+  <!-- METAS -->
   <div class="card">
-    <h2>¿Cuánto hay que radicar para llegar a la meta?</h2>
-    <p class="sub">Partiendo de tu meta neta mensual, en reversa: cuánto ingreso necesitas, cuánto volumen, y cómo se reparte.</p>
-    <div class="grid4" style="margin-bottom:14px">
-      <div class="mini-card"><b>Ingreso mensual necesario</b><div class="val" id="revIngreso">$0</div></div>
-      <div class="mini-card"><b>Volumen a radicar / mes</b><div class="val" id="revVolumen">$0</div></div>
-      <div class="mini-card"><b>Tiquete promedio (histórico)</b><div class="val" id="revTicket">$0</div></div>
-      <div class="mini-card"><b>Créditos necesarios / mes</b><div class="val" id="revCreditos">0</div></div>
+    <h2>Meta: $1.000.000.000 en desembolsos este mes</h2>
+    <div class="progress-track" style="height:26px"><div class="progress-fill" id="metaVolumenFill" style="width:0%"></div></div>
+    <div class="progress-label" id="metaVolumenLbl" style="margin-top:8px;font-size:13px"></div>
+    <div class="grid4" style="margin-top:14px">
+      <div class="mini-card"><b>Falta por desembolsar</b><div class="val" id="metaFalta">$0</div></div>
+      <div class="mini-card"><b>Tiquete promedio</b><div class="val" id="metaTicket">$0</div></div>
+      <div class="mini-card"><b>Operaciones que faltan</b><div class="val" id="metaOperaciones">0</div></div>
+      <div class="mini-card"><b>Por asesor activo</b><div class="val" id="metaPorAsesor">$0</div></div>
     </div>
-    <div class="grid3">
-      <div class="mini-card"><b>Radicar en bancos</b><div class="val" id="revBancos">$0</div></div>
-      <div class="mini-card"><b>Radicar en financieras</b><div class="val" id="revFinancieras">$0</div></div>
-      <div class="mini-card"><b>Por asesor activo</b><div class="val" id="revPorAsesor">$0</div></div>
+    <div class="grid2" style="margin-top:14px">
+      <div class="mini-card"><b>De lo que falta, en bancos</b><div class="val" id="metaBancos">$0</div></div>
+      <div class="mini-card"><b>De lo que falta, en financieras</b><div class="val" id="metaFinancieras">$0</div></div>
     </div>
-    <div class="note" id="notaMeta"></div>
+  </div>
+
+  <div class="card">
+    <h2>Punto de equilibrio</h2>
+    <p class="sub">El desembolso mínimo que necesitas este mes para que el margen no quede en negativo — cubrir gastos y comisiones, sin ganar ni perder.</p>
+    <div class="progress-track" style="height:26px"><div class="progress-fill" id="metaEquilibrioFill" style="width:0%"></div></div>
+    <div class="progress-label" id="metaEquilibrioLbl" style="margin-top:8px;font-size:13px"></div>
+    <div class="grid4" style="margin-top:14px">
+      <div class="mini-card"><b>Falta para llegar al equilibrio</b><div class="val" id="equilibrioFalta">$0</div></div>
+      <div class="mini-card"><b>Operaciones que faltan</b><div class="val" id="equilibrioOperaciones">0</div></div>
+      <div class="mini-card"><b>De eso, en bancos</b><div class="val" id="equilibrioBancos">$0</div></div>
+      <div class="mini-card"><b>De eso, en financieras</b><div class="val" id="equilibrioFinancieras">$0</div></div>
+    </div>
+    <div class="note" id="notaEquilibrio"></div>
   </div>
 
 </div>
@@ -136,48 +172,40 @@ async function iniciar(){
   await calcularTodo();
 }
 
-/* ---------- Supuestos ---------- */
 async function cargarSupuestos(){
   const { data } = await supabase.from('pyg_supuestos').select('*').eq('id', 1).single();
-  SUPUESTOS = data || { meta_neta_mensual:100000000, volumen_objetivo_mensual:1000000000, pct_bancos:60, tasa_comision_estimada_pct:15 };
-  document.getElementById('supMetaNeta').value = fmtMoney(SUPUESTOS.meta_neta_mensual);
+  SUPUESTOS = data || { volumen_objetivo_mensual:1000000000, pct_bancos:60 };
   document.getElementById('supVolumen').value = fmtMoney(SUPUESTOS.volumen_objetivo_mensual);
   document.getElementById('supPctBancos').value = SUPUESTOS.pct_bancos;
-  document.getElementById('supTasaComision').value = SUPUESTOS.tasa_comision_estimada_pct;
 }
 async function guardarSupuestos(){
   SUPUESTOS = {
     id: 1,
-    meta_neta_mensual: parseMonto(document.getElementById('supMetaNeta').value),
     volumen_objetivo_mensual: parseMonto(document.getElementById('supVolumen').value),
     pct_bancos: +document.getElementById('supPctBancos').value,
-    tasa_comision_estimada_pct: +document.getElementById('supTasaComision').value,
     updated_by: PERFIL.id, updated_at: new Date().toISOString(),
   };
   await supabase.from('pyg_supuestos').upsert(SUPUESTOS);
   await calcularTodo();
 }
 
-/* ---------- Gastos y costos ---------- */
 async function cargarGastos(){
-  const { data } = await supabase.from('gastos_operativos').select('*').order('categoria').order('nombre');
-  document.getElementById('gastosBody').innerHTML = (data||[]).map(g=>`
+  const { data } = await supabase.from('gastos_operativos').select('*').order('nombre');
+  const fijos = (data||[]).filter(g=>g.categoria==='gasto_fijo');
+  const variables = (data||[]).filter(g=>g.categoria==='costo_variable');
+  document.getElementById('fijosBody').innerHTML = filaGastos(fijos);
+  document.getElementById('variablesBody').innerHTML = filaGastos(variables);
+  document.getElementById('totalFijos').textContent = fmtMoney(fijos.filter(g=>g.activo).reduce((s,g)=>s+(+g.monto_mensual||0),0));
+  document.getElementById('totalVariables').textContent = fmtMoney(variables.filter(g=>g.activo).reduce((s,g)=>s+(+g.monto_mensual||0),0));
+}
+function filaGastos(lista){
+  return lista.map(g=>`
     <tr data-id="${g.id}">
-      <td><select onchange="cambiarGasto(this,'categoria')">
-        <option value="gasto_fijo" ${g.categoria==='gasto_fijo'?'selected':''}>Gasto fijo</option>
-        <option value="costo_variable" ${g.categoria==='costo_variable'?'selected':''}>Costo variable</option>
-      </select></td>
       <td><input type="text" value="${(g.nombre||'').replace(/"/g,'&quot;')}" onchange="cambiarGasto(this,'nombre')"></td>
       <td><input type="text" inputmode="decimal" value="${fmtMoney(g.monto_mensual||0)}" onchange="cambiarGasto(this,'monto_mensual')"></td>
       <td style="text-align:center"><input type="checkbox" style="width:auto" ${g.activo?'checked':''} onchange="cambiarGasto(this,'activo',true)"></td>
       <td><button class="btn btn-ghost" onclick="borrarGasto('${g.id}')">✕</button></td>
-    </tr>`).join('') || `<tr><td colspan="5" style="text-align:center;color:var(--muted)">Sin gastos registrados todavía.</td></tr>`;
-  actualizarTotalGastos(data||[]);
-}
-function actualizarTotalGastos(lista){
-  const total = (lista||[]).filter(g=>g.activo).reduce((s,g)=>s+(+g.monto_mensual||0),0);
-  document.getElementById('totalGastos').textContent = fmtMoney(total);
-  return total;
+    </tr>`).join('') || `<tr><td colspan="4" style="text-align:center;color:var(--muted)">Sin conceptos todavía.</td></tr>`;
 }
 async function addGasto(categoria){
   await supabase.from('gastos_operativos').insert({ categoria, nombre:'Nuevo concepto', monto_mensual:0, activo:true, creado_por:PERFIL.id });
@@ -198,7 +226,6 @@ async function borrarGasto(id){
   await calcularTodo();
 }
 
-/* ---------- Tasas promedio (para proyectar meses futuros) ---------- */
 function tasaIngresoPromedioPorMillon(){
   const bancos = ENTIDADES.filter(e=>e.tipo==='BANCO');
   const financieras = ENTIDADES.filter(e=>e.tipo==='FINANCIERA');
@@ -208,118 +235,92 @@ function tasaIngresoPromedioPorMillon(){
   return { avgBancos, avgFinancieras, tasaPonderada: pctB*avgBancos + (1-pctB)*avgFinancieras };
 }
 
-/* ---------- PyG real del mes en curso (reutiliza el mismo cálculo del sistema) ---------- */
-async function pygRealMesEnCurso(){
-  const inicioMes = mesActualISO() + '-01';
-  const { data: desembolsos } = await supabase.from('creditos')
-    .select('*, perfiles:titular_id(rol), entidades:entidad_id(entidad_paga)')
-    .eq('estado','desembolsado').gte('fecha_desembolso', inicioMes);
-  const filas = desembolsos || [];
-  const ingreso = filas.reduce((s,c)=>{
-    if(!c.entidades) return s;
-    return s + millonesExactos(c.monto) * (+c.entidades.entidad_paga||0);
-  }, 0);
-  const cfg = await configVigente();
-  const puntosPorAsesor = {};
-  filas.forEach(c=>{
-    if(c.perfiles?.rol==='asesor') puntosPorAsesor[c.titular_id] = (puntosPorAsesor[c.titular_id]||0) + (+c.puntos_calculados||0);
-  });
-  let costoAsesores = 0;
-  if(cfg) Object.values(puntosPorAsesor).forEach(pts=>{ costoAsesores += calcBonoAsesor(pts, cfg).bono; });
-  const costoAnalistaPropios = filas.filter(c=>c.perfiles?.rol==='analista').reduce((s,c)=>s+(+c.puntos_calculados||0),0);
-  const { comisionTotal: costoAnalistaEquipo } = await calcularComisionEquipoAnalista(null);
-  const comisiones = costoAsesores + costoAnalistaPropios + costoAnalistaEquipo;
-  return { ingreso, comisiones };
-}
-
-/* ---------- Cálculo completo: PyG mes a mes + meta reversa ---------- */
 async function calcularTodo(){
-  const { data: gastosData } = await supabase.from('gastos_operativos').select('*');
-  const gastosMensuales = actualizarTotalGastos(gastosData||[]);
+  const inicioMes = mesActualISO() + '-01';
 
-  const { tasaPonderada } = tasaIngresoPromedioPorMillon();
-  const tasaComisionPct = (SUPUESTOS.tasa_comision_estimada_pct||0)/100;
+  const { data: gastosData } = await supabase.from('gastos_operativos').select('*').eq('activo', true);
+  const gastosTotales = (gastosData||[]).reduce((s,g)=>s+(+g.monto_mensual||0),0);
 
-  const hoy = new Date();
-  const meses = [
-    { nombre:'Septiembre 2026', anio:2026, mes:9 },
-    { nombre:'Octubre 2026', anio:2026, mes:10 },
-    { nombre:'Noviembre 2026', anio:2026, mes:11 },
-    { nombre:'Diciembre 2026', anio:2026, mes:12 },
-  ];
-  const esMesActual = m => hoy.getFullYear()===m.anio && (hoy.getMonth()+1)===m.mes;
-  const diasDelMes = (anio,mes) => new Date(anio, mes, 0).getDate();
+  const { data: creditosMes } = await supabase.from('creditos')
+    .select('monto, estado, entidad_id, titular_id, entidades:entidad_id(tipo, entidad_paga), perfiles:titular_id(rol)')
+    .or(`fecha_radicado.gte.${inicioMes},fecha_desembolso.gte.${inicioMes}`);
+  const creditos = creditosMes || [];
+  const deAsesores = creditos.filter(c=>c.perfiles?.rol==='asesor');
+  const desembolsados = creditos.filter(c=>c.estado==='desembolsado');
 
-  let filasHTML = '';
-  let totIngreso=0, totComisiones=0, totGastos=0, totEbitda=0;
+  const ingresoReal = desembolsados.reduce((s,c)=>s + millonesExactos(c.monto)*(+c.entidades?.entidad_paga||0), 0);
+  const cfg = await configVigente();
+  const { data: desembolsadosConPuntos } = await supabase.from('creditos').select('titular_id, puntos_calculados, perfiles:titular_id(rol)').eq('estado','desembolsado').gte('fecha_desembolso', inicioMes);
+  const puntosPorAsesor = {};
+  let comisionAnalistaPropios = 0;
+  (desembolsadosConPuntos||[]).forEach(c=>{
+    if(c.perfiles?.rol==='asesor') puntosPorAsesor[c.titular_id] = (puntosPorAsesor[c.titular_id]||0) + (+c.puntos_calculados||0);
+    if(c.perfiles?.rol==='analista') comisionAnalistaPropios += (+c.puntos_calculados||0);
+  });
+  let comisionAsesores = 0;
+  if(cfg) Object.values(puntosPorAsesor).forEach(pts=>{ comisionAsesores += calcBonoAsesor(pts, cfg).bono; });
+  const { comisionTotal: comisionAnalistaEquipo } = await calcularComisionEquipoAnalista(null);
+  const comisionesReales = comisionAsesores + comisionAnalistaPropios + comisionAnalistaEquipo;
 
-  for(const m of meses){
-    let ingreso=0, comisiones=0, etiqueta='🟡 Proyectado';
-    const totalDias = diasDelMes(m.anio, m.mes);
+  const margenReal = ingresoReal - comisionesReales - gastosTotales;
+  document.getElementById('realIngreso').textContent = fmtMoney(ingresoReal);
+  document.getElementById('realComisiones').textContent = fmtMoney(comisionesReales);
+  document.getElementById('realGastos').textContent = fmtMoney(gastosTotales);
+  const elMargen = document.getElementById('realMargen');
+  elMargen.textContent = fmtMoney(margenReal);
+  elMargen.className = 'val ' + (margenReal<0?'neg':'pos');
 
-    if(esMesActual(m)){
-      const real = await pygRealMesEnCurso();
-      const diasTranscurridos = hoy.getDate();
-      const diasRestantes = totalDias - diasTranscurridos;
-      const volumenRestante = SUPUESTOS.volumen_objetivo_mensual * (diasRestantes/totalDias);
-      ingreso = real.ingreso + volumenRestante/1000000*tasaPonderada;
-      comisiones = real.comisiones + (volumenRestante/1000000*tasaPonderada)*tasaComisionPct;
-      etiqueta = `🟢 Real (${diasTranscurridos}/${totalDias} días) + 🟡 proyectado el resto`;
-    } else if(m.anio > hoy.getFullYear() || (m.anio===hoy.getFullYear() && m.mes > hoy.getMonth()+1)){
-      ingreso = SUPUESTOS.volumen_objetivo_mensual/1000000*tasaPonderada;
-      comisiones = ingreso*tasaComisionPct;
-      etiqueta = '🟡 Proyectado';
-    } else {
-      etiqueta = '🟢 Real';
-    }
+  const radicadoBancos = deAsesores.filter(c=>c.entidades?.tipo==='BANCO').reduce((s,c)=>s+millonesExactos(c.monto),0);
+  const radicadoFinancieras = deAsesores.filter(c=>c.entidades?.tipo==='FINANCIERA').reduce((s,c)=>s+millonesExactos(c.monto),0);
+  pintarColchon('colchonBancos', radicadoBancos, UMBRAL_ANALISTA_MILLONES.BANCO);
+  pintarColchon('colchonFin', radicadoFinancieras, UMBRAL_ANALISTA_MILLONES.FINANCIERA);
 
-    const ebitdaMes = ingreso - comisiones - gastosMensuales;
-    totIngreso += ingreso; totComisiones += comisiones; totGastos += gastosMensuales; totEbitda += ebitdaMes;
-
-    filasHTML += `<tr>
-      <td>${m.nombre}<br><span class="pill ${esMesActual(m)?'pill-real':'pill-proy'}" style="margin-top:4px">${etiqueta}</span></td>
-      <td>${fmtMoney(ingreso)}</td>
-      <td>${fmtMoney(comisiones)}</td>
-      <td>${fmtMoney(gastosMensuales)}</td>
-      <td class="${ebitdaMes<0?'neg':'pos'}" style="font-weight:700">${fmtMoney(ebitdaMes)}</td>
-    </tr>`;
-  }
-  document.getElementById('pygBody').innerHTML = filasHTML;
-  document.getElementById('totIngreso').textContent = fmtMoney(totIngreso);
-  document.getElementById('totEbitda').textContent = fmtMoney(totEbitda);
-  document.getElementById('totEbitdaMes').textContent = fmtMoney(totEbitda/meses.length);
-
-  await calcularMetaReversa(gastosMensuales, tasaPonderada, tasaComisionPct);
-}
-
-async function calcularMetaReversa(gastosMensuales, tasaPonderada, tasaComisionPct){
-  const ingresoNecesario = (SUPUESTOS.meta_neta_mensual + gastosMensuales) / (1 - tasaComisionPct);
-  const volumenNecesarioMillones = tasaPonderada>0 ? ingresoNecesario/tasaPonderada : 0;
-  const volumenNecesario = volumenNecesarioMillones*1000000;
-  const pctB = (SUPUESTOS.pct_bancos||0)/100;
-  const volumenBancos = volumenNecesario*pctB;
-  const volumenFinancieras = volumenNecesario*(1-pctB);
+  const desembolsadoTotal = desembolsados.reduce((s,c)=>s+parseMonto(c.monto), 0);
+  const volumenObjetivo = SUPUESTOS.volumen_objetivo_mensual;
+  const pctVolumen = Math.min(100, Math.round(desembolsadoTotal/volumenObjetivo*100));
+  document.getElementById('metaVolumenFill').style.width = pctVolumen+'%';
+  document.getElementById('metaVolumenLbl').textContent = `${fmtMoney(desembolsadoTotal)} de ${fmtMoney(volumenObjetivo)} (${pctVolumen}%)`;
+  const faltaVolumen = Math.max(0, volumenObjetivo - desembolsadoTotal);
 
   const { data: historicos } = await supabase.from('creditos').select('monto').eq('estado','desembolsado');
   const montos = (historicos||[]).map(c=>parseMonto(c.monto)).filter(m=>m>0);
   const ticketPromedio = montos.length ? montos.reduce((s,m)=>s+m,0)/montos.length : 0;
-  const creditosNecesarios = ticketPromedio>0 ? Math.round(volumenNecesario/ticketPromedio) : 0;
 
   const { data: asesoresActivos } = await supabase.from('perfiles').select('id').eq('rol','asesor').eq('activo', true);
   const numAsesores = (asesoresActivos||[]).length || 1;
-  const porAsesor = volumenNecesario/numAsesores;
+  const pctB = (SUPUESTOS.pct_bancos||0)/100;
 
-  document.getElementById('revIngreso').textContent = fmtMoney(ingresoNecesario);
-  document.getElementById('revVolumen').textContent = fmtMoney(volumenNecesario);
-  document.getElementById('revTicket').textContent = montos.length ? fmtMoney(ticketPromedio) : 'Sin historial aún';
-  document.getElementById('revCreditos').textContent = creditosNecesarios || '—';
-  document.getElementById('revBancos').textContent = fmtMoney(volumenBancos);
-  document.getElementById('revFinancieras').textContent = fmtMoney(volumenFinancieras);
-  document.getElementById('revPorAsesor').textContent = fmtMoney(porAsesor);
+  document.getElementById('metaFalta').textContent = fmtMoney(faltaVolumen);
+  document.getElementById('metaTicket').textContent = montos.length ? fmtMoney(ticketPromedio) : 'Sin historial aún';
+  document.getElementById('metaOperaciones').textContent = ticketPromedio>0 ? Math.ceil(faltaVolumen/ticketPromedio) : '—';
+  document.getElementById('metaPorAsesor').textContent = fmtMoney(faltaVolumen/numAsesores);
+  document.getElementById('metaBancos').textContent = fmtMoney(faltaVolumen*pctB);
+  document.getElementById('metaFinancieras').textContent = fmtMoney(faltaVolumen*(1-pctB));
 
-  document.getElementById('notaMeta').textContent = montos.length
-    ? `El tiquete promedio se calculó con ${montos.length} crédito(s) real(es) desembolsado(s) — entre más créditos reales existan, más preciso será este número.`
-    : `Todavía no hay créditos desembolsados en el sistema para calcular un tiquete promedio real — este número se irá afinando solo, a medida que se registren desembolsos.`;
+  const tasaComisionReal = ingresoReal>0 ? comisionesReales/ingresoReal : 0.15;
+  const { tasaPonderada } = tasaIngresoPromedioPorMillon();
+  const ingresoNecesarioEquilibrio = gastosTotales / (1 - tasaComisionReal);
+  const volumenEquilibrio = tasaPonderada>0 ? (ingresoNecesarioEquilibrio/tasaPonderada)*1000000 : 0;
+  const pctEquilibrio = volumenEquilibrio>0 ? Math.min(100, Math.round(desembolsadoTotal/volumenEquilibrio*100)) : 100;
+  document.getElementById('metaEquilibrioFill').style.width = pctEquilibrio+'%';
+  document.getElementById('metaEquilibrioLbl').textContent = `${fmtMoney(desembolsadoTotal)} de ${fmtMoney(volumenEquilibrio)} necesarios (${pctEquilibrio}%)`;
+  const faltaEquilibrio = Math.max(0, volumenEquilibrio - desembolsadoTotal);
+  document.getElementById('equilibrioFalta').textContent = faltaEquilibrio<=0 ? '✓ Ya lo alcanzaste' : fmtMoney(faltaEquilibrio);
+  document.getElementById('equilibrioOperaciones').textContent = ticketPromedio>0 ? Math.ceil(faltaEquilibrio/ticketPromedio) : '—';
+  document.getElementById('equilibrioBancos').textContent = fmtMoney(faltaEquilibrio*pctB);
+  document.getElementById('equilibrioFinancieras').textContent = fmtMoney(faltaEquilibrio*(1-pctB));
+  document.getElementById('notaEquilibrio').textContent = ingresoReal>0
+    ? `La tasa de comisión usada aquí (${Math.round(tasaComisionReal*100)}%) es la real de este mes — se ajusta sola a medida que avanza el mes.`
+    : `Todavía no hay ingreso real este mes, así que se usa una tasa de comisión de respaldo (15%) — en cuanto haya el primer desembolso, este número se vuelve exacto.`;
+}
+function pintarColchon(prefijo, radicadoMillones, umbralMillones){
+  const pct = Math.min(100, Math.round(radicadoMillones/umbralMillones*100));
+  document.getElementById(prefijo+'Fill').style.width = pct+'%';
+  document.getElementById(prefijo+'Val').textContent = `${fmtMoney(radicadoMillones*1000000)} de ${fmtMoney(umbralMillones*1000000)}`;
+  const restante = Math.max(0, umbralMillones-radicadoMillones);
+  document.getElementById(prefijo+'Lbl').textContent = restante>0
+    ? `Colchón restante: ${fmtMoney(restante*1000000)}`
+    : `✓ Colchón cubierto — de aquí en adelante, lo que se desembolse en esta categoría sí genera comisión para la analista.`;
 }
 
 iniciar();
