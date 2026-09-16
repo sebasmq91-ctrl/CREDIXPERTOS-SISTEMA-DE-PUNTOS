@@ -54,7 +54,7 @@ label{display:block;font-size:10.5px;font-weight:700;color:var(--muted);text-tra
 
   <div class="hero">
     <div>
-      <div class="tag">Panel de administrador · v15</div>
+      <div class="tag">Panel de administrador · v16</div>
       <h1 id="nombreAdmin">Credixpertos — puntos</h1>
     </div>
     <div style="display:flex;gap:8px">
@@ -412,11 +412,20 @@ async function actualizarCalculosEntidades(){
     const franja = document.querySelector(`[data-metricas="${e.id}"]`);
     if(!franja) return;
     const deEstaEntidad = desembolsos.filter(c=>c.entidad_id===e.id);
+    // Solo los créditos de ASESOR usan puntos crudos que hay que
+    // multiplicar por el valor del punto — la analista y la oficina
+    // aliada ya traen su valor final en pesos en puntos_calculados,
+    // no hay que volver a multiplicarlo.
+    const deAsesor = deEstaEntidad.filter(c=>c.perfiles?.rol==='asesor');
+    const deAnalistaPropio = deEstaEntidad.filter(c=>c.perfiles?.rol==='analista');
+    const deOficinaAliada = deEstaEntidad.filter(c=>c.perfiles?.rol==='oficina_aliada');
     const millones = deEstaEntidad.reduce((s,c)=>s+millonesExactos(c.monto),0);
     const ingreso = millones * (+e.entidad_paga||0);
-    const comisionPagada = cfg ? deEstaEntidad.reduce((s,c)=>s+(+c.puntos_calculados||0),0) * cfg.valor_punto : 0;
-    const analistaEquipo = analistaPorEntidad[e.id] || 0;
-    const margen = ingreso - comisionPagada - analistaEquipo;
+    const comisionPagada = cfg ? deAsesor.reduce((s,c)=>s+(+c.puntos_calculados||0),0) * cfg.valor_punto : 0;
+    const analistaPropia = deAnalistaPropio.reduce((s,c)=>s+(+c.puntos_calculados||0),0);
+    const oficinaAliada = deOficinaAliada.reduce((s,c)=>s+(+c.puntos_calculados||0),0);
+    const analistaEquipo = (analistaPorEntidad[e.id] || 0) + analistaPropia;
+    const margen = ingreso - comisionPagada - analistaEquipo - oficinaAliada;
     const margenPct = ingreso>0 ? Math.round(margen/ingreso*100) : null;
     if(margen<0 && !algunaNegativa) algunaNegativa = e.nombre;
     franja.innerHTML = `
@@ -424,6 +433,7 @@ async function actualizarCalculosEntidades(){
       <span>Ingreso (mes): <b>${fmtMoney(ingreso)}</b></span>
       <span>Comisión pagada (mes): <b>${fmtMoney(comisionPagada)}</b></span>
       <span>Analista (mes): <b>${fmtMoney(analistaEquipo)}</b></span>
+      <span>Oficina aliada (mes): <b>${fmtMoney(oficinaAliada)}</b></span>
       <span>Margen: <b class="${margen<0?'neg':'pos'}">${fmtMoney(margen)}</b></span>
       <span>Margen %: <b class="${margen<0?'neg':'pos'}">${margenPct===null?'—':margenPct+'%'}</b></span>`;
   });
@@ -431,7 +441,7 @@ async function actualizarCalculosEntidades(){
   const warnBox = document.getElementById('warnMargen');
   if(algunaNegativa){
     warnBox.style.display = 'block';
-    warnBox.textContent = `⚠ Este mes, ${algunaNegativa} te está dejando perdiendo dinero (lo que paga la entidad es menor que lo que se le paga al asesor + la analista por esos créditos). Revisa lo que te paga esa entidad o las tarifas configuradas.`;
+    warnBox.textContent = `⚠ Este mes, ${algunaNegativa} te está dejando perdiendo dinero (lo que paga la entidad es menor que lo que se le paga al asesor + la analista + la oficina aliada por esos créditos). Revisa lo que te paga esa entidad o las tarifas configuradas.`;
   } else {
     warnBox.style.display = 'none';
   }
