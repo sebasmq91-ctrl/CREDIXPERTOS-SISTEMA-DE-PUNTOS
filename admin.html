@@ -16,6 +16,7 @@ body{margin:0;font-family:'DM Sans',-apple-system,sans-serif;color:var(--text);b
 .btn{font-family:'DM Sans',sans-serif;font-weight:700;font-size:12px;border:none;border-radius:20px;padding:8px 15px;cursor:pointer;}
 .btn-primary{background:var(--brand);color:white;}
 .btn-ghost{background:var(--cyan-light);color:#0a5c6e;}
+.btn-gold{background:var(--gold-light);color:#92400E;}
 .btn-salir{background:rgba(255,255,255,0.15);color:white;}
 .card{background:white;border:1px solid var(--border);border-radius:14px;padding:20px 22px;margin-bottom:18px;}
 .card h2{font-family:Georgia,serif;font-size:16px;color:var(--brand);margin:0 0 4px;font-weight:400;}
@@ -53,7 +54,7 @@ label{display:block;font-size:10.5px;font-weight:700;color:var(--muted);text-tra
 
   <div class="hero">
     <div>
-      <div class="tag">Panel de administrador · v14</div>
+      <div class="tag">Panel de administrador · v15</div>
       <h1 id="nombreAdmin">Credixpertos — puntos</h1>
     </div>
     <div style="display:flex;gap:8px">
@@ -75,6 +76,17 @@ label{display:block;font-size:10.5px;font-weight:700;color:var(--muted);text-tra
       <h2>Resumen del mes por persona</h2>
       <p class="sub">Haz clic en cualquier tarjeta para ver el detalle completo — radicado por entidad, desembolsado y progreso hacia el siguiente garantizado.</p>
       <div class="grid3" id="tarjetasPersona" style="grid-template-columns:repeat(auto-fill,minmax(220px,1fr))"></div>
+    </div>
+    <div class="card" id="cardOficinaAliada" style="display:none">
+      <h2>Registrar crédito de oficina aliada</h2>
+      <p class="sub">Siempre es campaña manual — así que no hay que elegir origen. Queda "radicado"; márcalo como desembolsado cuando corresponda, abajo en "Todos los créditos".</p>
+      <div class="grid4">
+        <div><label>Cliente</label><input type="text" id="oaCliente"></div>
+        <div><label>Cédula</label><input type="text" id="oaCedula"></div>
+        <div><label>Monto</label><input type="text" inputmode="decimal" id="oaMonto" onblur="reformatearInputDinero(this)"></div>
+        <div><label>Entidad</label><select id="oaEntidad"></select></div>
+      </div>
+      <div class="row-actions"><button class="btn btn-primary" onclick="agregarCreditoOficinaAliada()">+ Agregar crédito</button></div>
     </div>
     <div class="card">
       <h2>Todos los créditos — este mes</h2>
@@ -109,7 +121,9 @@ label{display:block;font-size:10.5px;font-weight:700;color:var(--muted);text-tra
       </div>
       <div style="margin-top:16px;max-width:420px">
         <label>Porcentaje de la analista sobre sus propios clientes de mercado natural (%)</label>
-        <input type="number" id="cfgPorcentajeAnalistaMN">
+        <input type="number" id="cfgPorcentajeAnalistaMN" style="margin-bottom:14px">
+        <label>Porcentaje de la oficina aliada sobre campaña manual (%)</label>
+        <input type="number" id="cfgPorcentajeOficinaAliada">
       </div>
       <div class="note"><b style="display:inline">Regla:</b> la comisión variable se paga completa desde el primer punto — no hay "zona intermedia" con tarifa reducida. Encima de esa comisión, al llegar a los puntos de cada nivel se suma el garantizado de ese nivel. El Nivel 3 es un techo: por encima de esos puntos el garantizado no sigue subiendo (la comisión variable sí sigue creciendo con cada punto).</div>
       <div class="row-actions"><button class="btn btn-primary" onclick="guardarNuevaConfig()">Guardar como nueva versión (vigente desde hoy)</button></div>
@@ -224,11 +238,38 @@ async function iniciar(){
   await cargarConfigForm();
   await cargarEntidades();
   await cargarUsuarios();
+  await cargarOficinaAliada();
   await cargarSeguimiento();
 
   supabase.channel('admin-creditos')
     .on('postgres_changes', { event:'*', schema:'public', table:'creditos' }, ()=>{ cargarSeguimiento(); actualizarCalculosEntidades(); })
     .subscribe();
+}
+
+/* ---------- Oficina aliada ---------- */
+let OFICINA_ALIADA_ID = null;
+async function cargarOficinaAliada(){
+  const { data } = await supabase.from('perfiles').select('id').eq('rol', 'oficina_aliada').eq('activo', true).limit(1).maybeSingle();
+  if(!data) return; // todavía no se ha creado el perfil en Supabase — la tarjeta queda oculta
+  OFICINA_ALIADA_ID = data.id;
+  document.getElementById('oaEntidad').innerHTML = ENTIDADES.map(e=>`<option value="${e.id}">${e.nombre}</option>`).join('');
+  document.getElementById('cardOficinaAliada').style.display = '';
+}
+async function agregarCreditoOficinaAliada(){
+  if(!OFICINA_ALIADA_ID) return;
+  const monto = parseMonto(document.getElementById('oaMonto').value);
+  const { error } = await supabase.from('creditos').insert({
+    titular_id: OFICINA_ALIADA_ID,
+    cliente: document.getElementById('oaCliente').value,
+    cedula_cliente: document.getElementById('oaCedula').value,
+    monto, entidad_id: document.getElementById('oaEntidad').value,
+    origen: 'campana_manual', estado: 'radicado', fecha_radicado: hoyISO(),
+  });
+  if(error){ alert('No se pudo agregar: '+error.message); return; }
+  document.getElementById('oaCliente').value = '';
+  document.getElementById('oaCedula').value = '';
+  document.getElementById('oaMonto').value = '';
+  await cargarSeguimiento();
 }
 
 function cambiarTab(id){
@@ -253,6 +294,7 @@ async function cargarConfigForm(){
     document.getElementById('cfgN3Pts').value = cfg.nivel3_pts;
     document.getElementById('cfgN3Bono').value = fmtMoney(cfg.nivel3_bono);
     document.getElementById('cfgPorcentajeAnalistaMN').value = cfg.porcentaje_analista_mn ?? 40;
+    document.getElementById('cfgPorcentajeOficinaAliada').value = cfg.porcentaje_oficina_aliada ?? 60;
   }
 }
 async function guardarNuevaConfig(){
@@ -266,6 +308,7 @@ async function guardarNuevaConfig(){
     nivel3_bono: parseMonto(document.getElementById('cfgN3Bono').value),
     tarifa_analista: null, // campo en desuso — el pago de la analista ya se decide por entidad
     porcentaje_analista_mn: +document.getElementById('cfgPorcentajeAnalistaMN').value,
+    porcentaje_oficina_aliada: +document.getElementById('cfgPorcentajeOficinaAliada').value,
     creado_por: PERFIL.id,
   });
   mostrarMsg('msgConfig', error ? 'No se pudo guardar: '+error.message : 'Guardado — vigente desde hoy.', !error);
@@ -437,9 +480,11 @@ async function cargarRentabilidad(desembolsos, cfg){
   // TODOS los asesores (para el costo total de la empresa).
   const puntosPorAsesor = {};
   let costoAnalistaPropios = 0;
+  let costoOficinaAliada = 0;
   desembolsos.forEach(c=>{
     const rol = c.perfiles?.rol;
     if(rol==='analista'){ costoAnalistaPropios += (+c.puntos_calculados||0); return; }
+    if(rol==='oficina_aliada'){ costoOficinaAliada += (+c.puntos_calculados||0); return; }
     if(rol==='asesor'){
       const id = c.titular_id;
       puntosPorAsesor[id] = (puntosPorAsesor[id]||0) + (+c.puntos_calculados||0);
@@ -450,7 +495,7 @@ async function cargarRentabilidad(desembolsos, cfg){
     Object.values(puntosPorAsesor).forEach(pts=>{ costoAsesores += calcBonoAsesor(pts, cfg).bono; });
   }
   const { comisionTotal: costoAnalistaEquipo } = await calcularComisionEquipoAnalista(null); // null = todos los asesores
-  const costoTotal = costoAsesores + costoAnalistaPropios + costoAnalistaEquipo;
+  const costoTotal = costoAsesores + costoAnalistaPropios + costoAnalistaEquipo + costoOficinaAliada;
   const margenGlobal = ingresoTotal - costoTotal;
   const margenPct = ingresoTotal>0 ? Math.round(margenGlobal/ingresoTotal*100) : null;
 
@@ -562,7 +607,7 @@ async function cargarSeguimiento(){
   PERFILES_TODOS = perfilesTodos || [];
   const porPersona = {};
   (perfilesTodos||[]).forEach(p=>{
-    if(p.rol==='asesor' || p.rol==='analista'){
+    if(p.rol==='asesor' || p.rol==='analista' || p.rol==='oficina_aliada'){
       porPersona[p.id] = { nombre:p.nombre, rol:p.rol, puntosTotal:0, comisionPropia:0, montoRadicado:0, montoDesembolsado:0, numOperaciones:0 };
     }
   });
@@ -575,7 +620,7 @@ async function cargarSeguimiento(){
     if(r.estado==='desembolsado'){
       porPersona[id].montoDesembolsado += parseMonto(r.monto);
       porPersona[id].puntosTotal += (+r.puntos_calculados||0);
-      if(porPersona[id].rol==='analista') porPersona[id].comisionPropia += (+r.puntos_calculados||0);
+      if(porPersona[id].rol==='analista' || porPersona[id].rol==='oficina_aliada') porPersona[id].comisionPropia += (+r.puntos_calculados||0);
     }
   });
 
@@ -598,13 +643,15 @@ async function cargarSeguimiento(){
     } else if(d.rol==='analista'){
       d.comisionTotal = d.comisionPropia + (equipoPorAnalista[id]||0);
       d.equipoAsignado = equipoPorAnalista[id]||0;
+    } else if(d.rol==='oficina_aliada'){
+      d.comisionTotal = d.comisionPropia; // ya viene en pesos (60% de la comisión de campaña manual)
     }
   });
   TOTAL_ANALISTA_EQUIPO_MES = equipoPorAnalista; // objeto por analista_id
 
   document.getElementById('tarjetasPersona').innerHTML = Object.entries(porPersona).map(([id,d])=>`
     <div class="mini-card" style="cursor:pointer" onclick="abrirDetallePersona('${id}')">
-      <b>${d.nombre} · ${d.rol}</b>
+      <b>${d.nombre} · ${d.rol==='oficina_aliada'?'oficina aliada':d.rol}</b>
       <div style="font-size:20px;font-weight:700;color:var(--brand)">${fmtMoney(d.comisionTotal||0)}</div>
       <div style="font-size:11px;color:var(--muted);margin-top:4px">${fmtMoney(d.montoRadicado+d.montoDesembolsado)} en ${d.numOperaciones} operación(es)</div>
       <div style="font-size:11px;color:var(--cyan);margin-top:6px">Ver detalle →</div>
@@ -622,7 +669,7 @@ async function cargarSeguimiento(){
       <td><span class="pill ${r.estado==='desembolsado'?'pill-des':'pill-rad'}">${r.estado==='desembolsado'?'Desembolsado':'Radicado'}</span></td>
       <td>${r.estado==='desembolsado' ? (r.fecha_desembolso||'—') : (r.fecha_radicado||'—')}</td>
       <td style="font-weight:700">${r.estado==='desembolsado' ? fmtNum(r.puntos_calculados) : '—'}</td>
-      <td><button class="btn btn-ghost" onclick="borrarCreditoAdmin('${r.id}')">Eliminar</button></td>
+      <td><button class="btn btn-gold" onclick="marcarDesembolsadoAdmin('${r.id}')" style="${r.estado==='desembolsado'?'display:none':''}">✓ Desembolsó</button> <button class="btn btn-ghost" onclick="borrarCreditoAdmin('${r.id}')">Eliminar</button></td>
     </tr>`).join('') || `<tr><td colspan="10" style="text-align:center;color:var(--muted)">Sin movimientos este mes todavía.</td></tr>`;
 }
 async function cambiarCreditoAdmin(el, campo){
@@ -634,6 +681,10 @@ async function cambiarCreditoAdmin(el, campo){
   }
   const id = el.closest('tr').dataset.id;
   await supabase.from('creditos').update({ [campo]: el.value }).eq('id', id);
+}
+async function marcarDesembolsadoAdmin(id){
+  await supabase.from('creditos').update({ estado:'desembolsado', fecha_desembolso: hoyISO() }).eq('id', id);
+  await cargarSeguimiento();
 }
 async function borrarCreditoAdmin(id){
   if(!confirm('¿Eliminar este registro?')) return;
@@ -663,7 +714,7 @@ function abrirDetallePersona(titularId){
   let totalValor = desembolsados.reduce((s,r)=>s+(+r.puntos_calculados||0),0);
   if(rol==='analista') totalValor += (TOTAL_ANALISTA_EQUIPO_MES[titularId]||0);
 
-  document.getElementById('modalRol').textContent = rol==='asesor' ? 'Asesor comercial' : (rol==='analista' ? 'Analista de crédito' : rol||'—');
+  document.getElementById('modalRol').textContent = rol==='asesor' ? 'Asesor comercial' : (rol==='analista' ? 'Analista de crédito' : (rol==='oficina_aliada' ? 'Oficina aliada' : rol||'—'));
   document.getElementById('modalNombre').textContent = nombre || '—';
 
   if(rol==='asesor' && CFG_SEGUIMIENTO){
