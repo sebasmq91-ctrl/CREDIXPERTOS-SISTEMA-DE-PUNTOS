@@ -162,14 +162,32 @@ async function mapaTarifaAnalistaPorEntidad(){
 // un conjunto de asesores este mes. asesorIds=null cuenta TODOS los
 // asesores (útil para el costo total de la empresa); pasar una lista
 // de ids cuenta solo esos asesores (los asignados a una analista).
-async function calcularComisionEquipoAnalista(asesorIds){
+//
+// analistaId (opcional): además de los créditos de esos asesores,
+// suma los créditos de oficina aliada o de producción propia del
+// admin que esa analista específica gestionó operativamente
+// (creditos.analista_gestion_id) — normalmente esos créditos NO le
+// suman a nadie, solo cuando el admin marca explícitamente quién
+// intervino. Si no se pasa analistaId (asesorIds=null, cálculo para
+// TODA la empresa), se incluyen todos los créditos gestionados sin
+// importar cuál analista quedó asignada.
+async function calcularComisionEquipoAnalista(asesorIds, analistaId){
   const inicioMes = mesActualISO() + '-01';
   const { data } = await supabase.from('creditos')
-    .select('id, monto, estado, entidad_id, titular_id, created_at, entidades:entidad_id(tipo), perfiles:titular_id(rol)')
+    .select('id, monto, estado, entidad_id, titular_id, analista_gestion_id, created_at, entidades:entidad_id(tipo), perfiles:titular_id(rol)')
     .or(`fecha_radicado.gte.${inicioMes},fecha_desembolso.gte.${inicioMes}`)
     .order('created_at', { ascending:true });
-  let creditos = (data||[]).filter(c=>c.perfiles?.rol==='asesor');
-  if(asesorIds) creditos = creditos.filter(c=>asesorIds.includes(c.titular_id));
+  const todos = data || [];
+  let creditosAsesor = todos.filter(c=>c.perfiles?.rol==='asesor');
+  if(asesorIds) creditosAsesor = creditosAsesor.filter(c=>asesorIds.includes(c.titular_id));
+
+  let creditosGestionados = todos.filter(c=>
+    (c.perfiles?.rol==='oficina_aliada' || c.perfiles?.rol==='admin') && c.analista_gestion_id
+  );
+  if(analistaId) creditosGestionados = creditosGestionados.filter(c=>c.analista_gestion_id===analistaId);
+
+  let creditos = creditosAsesor.concat(creditosGestionados)
+    .sort((a,b)=> new Date(a.created_at) - new Date(b.created_at));
 
   const cfg = await configVigente();
   const tarifaPorEntidad = await mapaTarifaAnalistaPorEntidad();

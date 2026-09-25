@@ -55,7 +55,7 @@ label{display:block;font-size:10.5px;font-weight:700;color:var(--muted);text-tra
 
   <div class="hero">
     <div>
-      <div class="tag">Panel de administrador · v18</div>
+      <div class="tag">Panel de administrador · v19</div>
       <h1 id="nombreAdmin">Credixpertos — puntos</h1>
     </div>
     <div style="display:flex;gap:8px">
@@ -88,6 +88,13 @@ label{display:block;font-size:10.5px;font-weight:700;color:var(--muted);text-tra
         <div><label>Monto</label><input type="text" inputmode="decimal" id="oaMonto" onblur="reformatearInputDinero(this)"></div>
         <div><label>Entidad</label><select id="oaEntidad"></select></div>
       </div>
+      <div class="grid4" style="margin-top:14px">
+        <div><label>Fecha de radicación</label><input type="date" id="oaFecha"></div>
+        <div style="grid-column:span 2">
+          <label>¿Qué analista gestionó este crédito? (opcional)</label>
+          <select id="oaAnalistaGestion"><option value="">Sin analista — no le suma a nadie</option></select>
+        </div>
+      </div>
       <div class="row-actions"><button class="btn btn-primary" onclick="agregarCreditoOficinaAliada()">+ Agregar crédito</button></div>
     </div>
     <div class="card">
@@ -98,6 +105,13 @@ label{display:block;font-size:10.5px;font-weight:700;color:var(--muted);text-tra
         <div><label>Cédula</label><input type="text" id="propioCedula"></div>
         <div><label>Monto</label><input type="text" inputmode="decimal" id="propioMonto" onblur="reformatearInputDinero(this)"></div>
         <div><label>Entidad</label><select id="propioEntidad"></select></div>
+      </div>
+      <div class="grid4" style="margin-top:14px">
+        <div><label>Fecha de radicación</label><input type="date" id="propioFecha"></div>
+        <div style="grid-column:span 2">
+          <label>¿Qué analista gestionó este crédito? (opcional)</label>
+          <select id="propioAnalistaGestion"><option value="">Sin analista — no le suma a nadie</option></select>
+        </div>
       </div>
       <div class="row-actions"><button class="btn btn-primary" onclick="agregarCreditoPropio()">+ Agregar crédito</button></div>
     </div>
@@ -281,6 +295,7 @@ async function iniciar(){
   await cargarConfigForm();
   await cargarEntidades();
   await cargarUsuarios();
+  await cargarAnalistasActivas();
   await cargarOficinaAliada();
   cargarCreditoPropioUI();
   await cargarSeguimiento();
@@ -295,6 +310,19 @@ async function iniciar(){
     .subscribe();
 }
 
+/* ---------- Analistas activas (para el "¿quién gestionó?" de oficina aliada / propio) ---------- */
+let ANALISTAS_ACTIVAS = [];
+async function cargarAnalistasActivas(){
+  const { data } = await supabase.from('perfiles').select('id,nombre').eq('rol', 'analista').eq('activo', true).order('nombre');
+  ANALISTAS_ACTIVAS = data || [];
+  const opciones = '<option value="">Sin analista — no le suma a nadie</option>' +
+    ANALISTAS_ACTIVAS.map(a=>`<option value="${a.id}">${a.nombre}</option>`).join('');
+  const selOA = document.getElementById('oaAnalistaGestion');
+  const selPropio = document.getElementById('propioAnalistaGestion');
+  if(selOA) selOA.innerHTML = opciones;
+  if(selPropio) selPropio.innerHTML = opciones;
+}
+
 /* ---------- Oficina aliada ---------- */
 let OFICINA_ALIADA_ID = null;
 async function cargarOficinaAliada(){
@@ -302,22 +330,28 @@ async function cargarOficinaAliada(){
   if(!data) return; // todavía no se ha creado el perfil en Supabase — la tarjeta queda oculta
   OFICINA_ALIADA_ID = data.id;
   document.getElementById('oaEntidad').innerHTML = ENTIDADES.map(e=>`<option value="${e.id}">${e.nombre}</option>`).join('');
+  document.getElementById('oaFecha').value = hoyISO();
   document.getElementById('cardOficinaAliada').style.display = '';
 }
 async function agregarCreditoOficinaAliada(){
   if(!OFICINA_ALIADA_ID) return;
   const monto = parseMonto(document.getElementById('oaMonto').value);
+  const fecha = document.getElementById('oaFecha').value || hoyISO();
+  const analistaGestion = document.getElementById('oaAnalistaGestion').value || null;
   const { error } = await supabase.from('creditos').insert({
     titular_id: OFICINA_ALIADA_ID,
     cliente: document.getElementById('oaCliente').value,
     cedula_cliente: document.getElementById('oaCedula').value,
     monto, entidad_id: document.getElementById('oaEntidad').value,
-    origen: 'campana_manual', estado: 'radicado', fecha_radicado: hoyISO(),
+    origen: 'campana_manual', estado: 'radicado', fecha_radicado: fecha,
+    analista_gestion_id: analistaGestion,
   });
   if(error){ alert('No se pudo agregar: '+error.message); return; }
   document.getElementById('oaCliente').value = '';
   document.getElementById('oaCedula').value = '';
   document.getElementById('oaMonto').value = '';
+  document.getElementById('oaFecha').value = hoyISO();
+  document.getElementById('oaAnalistaGestion').value = '';
   await cargarSeguimiento();
   await cargarConsolidado();
 }
@@ -329,18 +363,24 @@ async function agregarCreditoOficinaAliada(){
 // 'admin', así que nunca "inventa" una comisión por accidente.
 function cargarCreditoPropioUI(){
   document.getElementById('propioEntidad').innerHTML = ENTIDADES.map(e=>`<option value="${e.id}">${e.nombre}</option>`).join('');
+  document.getElementById('propioFecha').value = hoyISO();
 }
 async function agregarCreditoPropio(){
   const monto = parseMonto(document.getElementById('propioMonto').value);
+  const fecha = document.getElementById('propioFecha').value || hoyISO();
+  const analistaGestion = document.getElementById('propioAnalistaGestion').value || null;
   const { error } = await supabase.from('creditos').insert({
     titular_id: PERFIL.id,
     cliente: document.getElementById('propioCliente').value,
     cedula_cliente: document.getElementById('propioCedula').value,
     monto, entidad_id: document.getElementById('propioEntidad').value,
-    origen: 'campana_manual', estado: 'radicado', fecha_radicado: hoyISO(),
+    origen: 'campana_manual', estado: 'radicado', fecha_radicado: fecha,
+    analista_gestion_id: analistaGestion,
   });
   if(error){ alert('No se pudo agregar: '+error.message); return; }
   document.getElementById('propioCliente').value = '';
+  document.getElementById('propioFecha').value = hoyISO();
+  document.getElementById('propioAnalistaGestion').value = '';
   document.getElementById('propioCedula').value = '';
   document.getElementById('propioMonto').value = '';
   await cargarSeguimiento();
@@ -716,7 +756,7 @@ async function cargarSeguimiento(){
   const analistas = (perfilesTodos||[]).filter(p=>p.rol==='analista');
   for(const a of analistas){
     const asesorIds = (perfilesTodos||[]).filter(p=>p.rol==='asesor' && p.analista_id===a.id).map(p=>p.id);
-    const { comisionTotal } = await calcularComisionEquipoAnalista(asesorIds);
+    const { comisionTotal } = await calcularComisionEquipoAnalista(asesorIds, a.id);
     equipoPorAnalista[a.id] = comisionTotal;
   }
 
@@ -880,7 +920,7 @@ function comisionProyectadaCredito(c, tarifasOrigenMapa, cfg, valorPunto){
 
 async function cargarConsolidado(){
   const { data } = await supabase.from('creditos')
-    .select('*, perfiles:titular_id(nombre, rol), entidades:entidad_id(nombre, entidad_paga)')
+    .select('*, perfiles:titular_id(nombre, rol), entidades:entidad_id(nombre, entidad_paga), gestion:analista_gestion_id(nombre)')
     .order('created_at', { ascending:false });
   CONSOLIDADO_CREDITOS = data || [];
 
@@ -944,7 +984,7 @@ async function renderConsolidado(){
   const etiquetaRol = { asesor:'Asesor', analista:'Analista', oficina_aliada:'Oficina aliada', admin:'Credixpertos (propio)' };
   document.getElementById('consolidadoBody').innerHTML = filasConComision.map(({c, comisionTitular, comisionEmpresa, total})=>`
     <tr data-id="${c.id}">
-      <td>${c.perfiles?.nombre||'—'}<br><span style="color:var(--muted);font-size:11px">${etiquetaRol[c.perfiles?.rol]||c.perfiles?.rol||'—'}</span></td>
+      <td>${c.perfiles?.nombre||'—'}<br><span style="color:var(--muted);font-size:11px">${etiquetaRol[c.perfiles?.rol]||c.perfiles?.rol||'—'}${c.gestion?.nombre ? ' · gestionó '+c.gestion.nombre : ''}</span></td>
       <td><input type="text" value="${(c.cliente||'').replace(/"/g,'&quot;')}" onchange="cambiarCreditoAdmin(this,'cliente')"></td>
       <td><input type="text" value="${c.cedula_cliente||''}" onchange="cambiarCreditoAdmin(this,'cedula_cliente')"></td>
       <td><input type="text" inputmode="decimal" value="${fmtMoney(parseMonto(c.monto))}" onchange="cambiarCreditoAdmin(this,'monto')"></td>
