@@ -55,7 +55,7 @@ label{display:block;font-size:10.5px;font-weight:700;color:var(--muted);text-tra
 
   <div class="hero">
     <div>
-      <div class="tag">Panel de administrador · v17</div>
+      <div class="tag">Panel de administrador · v18</div>
       <h1 id="nombreAdmin">Credixpertos — puntos</h1>
     </div>
     <div style="display:flex;gap:8px">
@@ -81,7 +81,7 @@ label{display:block;font-size:10.5px;font-weight:700;color:var(--muted);text-tra
     </div>
     <div class="card" id="cardOficinaAliada" style="display:none">
       <h2>Registrar crédito de oficina aliada</h2>
-      <p class="sub">Siempre es campaña manual — así que no hay que elegir origen. Queda "radicado"; márcalo como desembolsado cuando corresponda, abajo en "Todos los créditos".</p>
+      <p class="sub">Siempre es campaña manual — así que no hay que elegir origen. Queda "radicado"; márcalo como desembolsado cuando corresponda, en la pestaña "Consolidado".</p>
       <div class="grid4">
         <div><label>Cliente</label><input type="text" id="oaCliente"></div>
         <div><label>Cédula</label><input type="text" id="oaCedula"></div>
@@ -92,7 +92,7 @@ label{display:block;font-size:10.5px;font-weight:700;color:var(--muted);text-tra
     </div>
     <div class="card">
       <h2>Radicar crédito propio (producción de Credixpertos)</h2>
-      <p class="sub">Para créditos que tú mismo gestionas directamente. No genera comisión para nadie — solo cuenta como volumen e ingreso de la empresa. Queda "radicado"; márcalo como desembolsado abajo en "Todos los créditos".</p>
+      <p class="sub">Para créditos que tú mismo gestionas directamente. No genera comisión para nadie — solo cuenta como volumen e ingreso de la empresa. Queda "radicado"; márcalo como desembolsado en la pestaña "Consolidado".</p>
       <div class="grid4">
         <div><label>Cliente</label><input type="text" id="propioCliente"></div>
         <div><label>Cédula</label><input type="text" id="propioCedula"></div>
@@ -100,14 +100,6 @@ label{display:block;font-size:10.5px;font-weight:700;color:var(--muted);text-tra
         <div><label>Entidad</label><select id="propioEntidad"></select></div>
       </div>
       <div class="row-actions"><button class="btn btn-primary" onclick="agregarCreditoPropio()">+ Agregar crédito</button></div>
-    </div>
-    <div class="card">
-      <h2>Todos los créditos — este mes</h2>
-      <p class="sub">Se actualiza solo cuando alguien del equipo hace un cambio. Puedes editar cualquier fila.</p>
-      <table>
-        <thead><tr><th>Titular</th><th>Cliente</th><th>Cédula</th><th>Monto</th><th>Entidad</th><th>Origen</th><th>Estado</th><th>Fecha</th><th>Puntos</th><th></th></tr></thead>
-        <tbody id="todosBody"></tbody>
-      </table>
     </div>
   </div>
 
@@ -204,12 +196,18 @@ label{display:block;font-size:10.5px;font-weight:700;color:var(--muted);text-tra
   <!-- CONSOLIDADO -->
   <div class="panel" id="pConsolidado">
     <div class="card">
-      <h2>Consolidado — radicado y comisión proyectada</h2>
-      <p class="sub">Cliente por cliente, esté o no desembolsado. La comisión se muestra siempre en pesos: si ya se desembolsó es el valor real y congelado; si sigue radicado es una proyección con la configuración vigente hoy (puede variar si cambias tarifas antes del desembolso).</p>
+      <h2>Consolidado — todos los créditos</h2>
+      <p class="sub">Cliente por cliente, esté o no desembolsado. Puedes editar cualquier fila, marcarla como desembolsada o eliminarla — reemplaza la tabla "Todos los créditos". La comisión se muestra siempre en pesos: si ya se desembolsó es el valor real y congelado; si sigue radicado es una proyección con la configuración vigente hoy (puede variar si cambias tarifas antes del desembolso).</p>
+      <p class="sub" style="margin-top:-8px"><b style="color:var(--text)">Comisión titular</b> = lo que le corresponde al asesor/analista/oficina aliada · <b style="color:var(--text)">Comisión empresa</b> = lo que le queda a Credixpertos · <b style="color:var(--text)">Total</b> = lo que paga la entidad por ese crédito.</p>
+      <div class="grid3" style="margin-bottom:10px">
+        <div class="mini-card"><b>Radicado pendiente ($)</b><div style="font-size:19px;font-weight:700" id="consMontoRadicado">$0</div></div>
+        <div class="mini-card"><b>Comisión titular proyectada</b><div style="font-size:19px;font-weight:700" id="consTitularRadicado">$0</div></div>
+        <div class="mini-card"><b>Comisión empresa proyectada</b><div style="font-size:19px;font-weight:700" id="consEmpresaRadicado">$0</div></div>
+      </div>
       <div class="grid3" style="margin-bottom:16px">
-        <div class="mini-card"><b>Radicado pendiente</b><div style="font-size:20px;font-weight:700" id="consTotalRadicado">$0</div></div>
-        <div class="mini-card"><b>Comisión proyectada (pendiente)</b><div style="font-size:20px;font-weight:700" id="consTotalProyectado">$0</div></div>
-        <div class="mini-card"><b>Comisión ya desembolsada</b><div style="font-size:20px;font-weight:700" id="consTotalDesembolsado">$0</div></div>
+        <div class="mini-card"><b>Desembolsado ($)</b><div style="font-size:19px;font-weight:700" id="consMontoDesembolsado">$0</div></div>
+        <div class="mini-card"><b>Comisión titular pagada</b><div style="font-size:19px;font-weight:700" id="consTitularDesembolsado">$0</div></div>
+        <div class="mini-card"><b>Comisión empresa (margen)</b><div style="font-size:19px;font-weight:700" id="consEmpresaDesembolsado">$0</div></div>
       </div>
       <div class="grid4" style="margin-bottom:14px">
         <div><label>Entidad</label><select id="consFiltroEntidad" onchange="renderConsolidado()"><option value="">Todas</option></select></div>
@@ -224,8 +222,11 @@ label{display:block;font-size:10.5px;font-weight:700;color:var(--muted);text-tra
         <div><label>Cliente / cédula</label><input type="text" id="consFiltroTexto" placeholder="Buscar…" oninput="renderConsolidado()"></div>
       </div>
       <table>
-        <thead><tr><th>Cliente</th><th>Cédula</th><th>Titular</th><th>Entidad</th><th>Origen</th><th>Estado</th><th>Monto</th><th>Comisión ($)</th><th>Fecha</th></tr></thead>
-        <tbody id="consolidadoBody"><tr><td colspan="9" style="text-align:center;color:var(--muted)">Cargando…</td></tr></tbody>
+        <thead><tr>
+          <th>Titular</th><th>Cliente</th><th>Cédula</th><th>Monto</th><th>Entidad</th><th>Origen</th><th>Estado</th><th>Fecha</th>
+          <th>Comisión titular</th><th>Comisión empresa</th><th>Total</th><th></th>
+        </tr></thead>
+        <tbody id="consolidadoBody"><tr><td colspan="12" style="text-align:center;color:var(--muted)">Cargando…</td></tr></tbody>
       </table>
     </div>
   </div>
@@ -283,6 +284,7 @@ async function iniciar(){
   await cargarOficinaAliada();
   cargarCreditoPropioUI();
   await cargarSeguimiento();
+  await cargarConsolidado();
 
   supabase.channel('admin-creditos')
     .on('postgres_changes', { event:'*', schema:'public', table:'creditos' }, ()=>{
@@ -317,6 +319,7 @@ async function agregarCreditoOficinaAliada(){
   document.getElementById('oaCedula').value = '';
   document.getElementById('oaMonto').value = '';
   await cargarSeguimiento();
+  await cargarConsolidado();
 }
 
 /* ---------- Crédito propio del admin (producción de Credixpertos) ---------- */
@@ -739,39 +742,29 @@ async function cargarSeguimiento(){
       <div style="font-size:11px;color:var(--cyan);margin-top:6px">Ver detalle →</div>
     </div>
   `).join('') || `<p style="color:var(--muted);text-align:center;grid-column:1/-1">Sin actividad este mes todavía.</p>`;
-
-  document.getElementById('todosBody').innerHTML = (creditos||[]).map(r=>`
-    <tr data-id="${r.id}">
-      <td>${r.perfiles?.nombre||'—'}</td>
-      <td><input type="text" value="${(r.cliente||'').replace(/"/g,'&quot;')}" onchange="cambiarCreditoAdmin(this,'cliente')"></td>
-      <td><input type="text" value="${r.cedula_cliente||''}" onchange="cambiarCreditoAdmin(this,'cedula_cliente')"></td>
-      <td><input type="text" inputmode="decimal" data-campo="monto" value="${fmtMoney(parseMonto(r.monto))}" onchange="cambiarCreditoAdmin(this,'monto')"></td>
-      <td>${r.entidades?.nombre || '—'}</td>
-      <td>${r.origen ? NOMBRES_ORIGEN[r.origen] : '—'}</td>
-      <td><span class="pill ${r.estado==='desembolsado'?'pill-des':'pill-rad'}">${r.estado==='desembolsado'?'Desembolsado':'Radicado'}</span></td>
-      <td>${r.estado==='desembolsado' ? (r.fecha_desembolso||'—') : (r.fecha_radicado||'—')}</td>
-      <td style="font-weight:700">${r.estado==='desembolsado' ? fmtNum(r.puntos_calculados) : '—'}</td>
-      <td><button class="btn btn-gold" onclick="marcarDesembolsadoAdmin('${r.id}')" style="${r.estado==='desembolsado'?'display:none':''}">✓ Desembolsó</button> <button class="btn btn-ghost" onclick="borrarCreditoAdmin('${r.id}')">Eliminar</button></td>
-    </tr>`).join('') || `<tr><td colspan="10" style="text-align:center;color:var(--muted)">Sin movimientos este mes todavía.</td></tr>`;
 }
 async function cambiarCreditoAdmin(el, campo){
   if(campo==='monto'){
     const id = el.closest('tr').dataset.id;
     const limpio = reformatearInputDinero(el);
     await supabase.from('creditos').update({ monto: limpio }).eq('id', id);
+    if(CONSOLIDADO_CARGADO) await cargarConsolidado();
     return;
   }
   const id = el.closest('tr').dataset.id;
   await supabase.from('creditos').update({ [campo]: el.value }).eq('id', id);
+  if(CONSOLIDADO_CARGADO) await cargarConsolidado();
 }
 async function marcarDesembolsadoAdmin(id){
   await supabase.from('creditos').update({ estado:'desembolsado', fecha_desembolso: hoyISO() }).eq('id', id);
   await cargarSeguimiento();
+  if(CONSOLIDADO_CARGADO) await cargarConsolidado();
 }
 async function borrarCreditoAdmin(id){
   if(!confirm('¿Eliminar este registro?')) return;
   await supabase.from('creditos').delete().eq('id', id);
   await cargarSeguimiento();
+  if(CONSOLIDADO_CARGADO) await cargarConsolidado();
 }
 
 /* ---------- Modal de detalle por persona ---------- */
@@ -924,31 +917,46 @@ async function renderConsolidado(){
     return true;
   });
 
-  let totalRadicado = 0, totalProyectado = 0, totalDesembolsado = 0;
+  // Por cada crédito: comisión del titular (asesor/analista/oficina
+  // aliada/propio), lo que paga la entidad en total (ingreso), y lo
+  // que le queda a Credixpertos como diferencia entre las dos.
+  let montoRad=0, titularRad=0, empresaRad=0, montoDes=0, titularDes=0, empresaDes=0;
   const filasConComision = filas.map(c=>{
-    const comision = comisionProyectadaCredito(c, tarifasOrigenMapa, cfg, valorPunto);
-    if(c.estado === 'radicado'){ totalRadicado += parseMonto(c.monto); totalProyectado += comision; }
-    else { totalDesembolsado += comision; }
-    return { c, comision };
+    const comisionTitular = comisionProyectadaCredito(c, tarifasOrigenMapa, cfg, valorPunto);
+    const millones = millonesExactos(c.monto);
+    const ingreso = millones * (+c.entidades?.entidad_paga || 0);
+    const comisionEmpresa = ingreso - comisionTitular;
+    if(c.estado === 'radicado'){
+      montoRad += parseMonto(c.monto); titularRad += comisionTitular; empresaRad += comisionEmpresa;
+    } else {
+      montoDes += parseMonto(c.monto); titularDes += comisionTitular; empresaDes += comisionEmpresa;
+    }
+    return { c, comisionTitular, comisionEmpresa, total: ingreso };
   });
 
-  document.getElementById('consTotalRadicado').textContent = fmtMoney(totalRadicado);
-  document.getElementById('consTotalProyectado').textContent = fmtMoney(totalProyectado);
-  document.getElementById('consTotalDesembolsado').textContent = fmtMoney(totalDesembolsado);
+  document.getElementById('consMontoRadicado').textContent = fmtMoney(montoRad);
+  document.getElementById('consTitularRadicado').textContent = fmtMoney(titularRad);
+  document.getElementById('consEmpresaRadicado').textContent = fmtMoney(empresaRad);
+  document.getElementById('consMontoDesembolsado').textContent = fmtMoney(montoDes);
+  document.getElementById('consTitularDesembolsado').textContent = fmtMoney(titularDes);
+  document.getElementById('consEmpresaDesembolsado').textContent = fmtMoney(empresaDes);
 
   const etiquetaRol = { asesor:'Asesor', analista:'Analista', oficina_aliada:'Oficina aliada', admin:'Credixpertos (propio)' };
-  document.getElementById('consolidadoBody').innerHTML = filasConComision.map(({c, comision})=>`
-    <tr>
-      <td>${c.cliente||'—'}</td>
-      <td>${c.cedula_cliente||'—'}</td>
-      <td>${c.perfiles?.nombre||'—'} <span style="color:var(--muted)">· ${etiquetaRol[c.perfiles?.rol]||c.perfiles?.rol||'—'}</span></td>
+  document.getElementById('consolidadoBody').innerHTML = filasConComision.map(({c, comisionTitular, comisionEmpresa, total})=>`
+    <tr data-id="${c.id}">
+      <td>${c.perfiles?.nombre||'—'}<br><span style="color:var(--muted);font-size:11px">${etiquetaRol[c.perfiles?.rol]||c.perfiles?.rol||'—'}</span></td>
+      <td><input type="text" value="${(c.cliente||'').replace(/"/g,'&quot;')}" onchange="cambiarCreditoAdmin(this,'cliente')"></td>
+      <td><input type="text" value="${c.cedula_cliente||''}" onchange="cambiarCreditoAdmin(this,'cedula_cliente')"></td>
+      <td><input type="text" inputmode="decimal" value="${fmtMoney(parseMonto(c.monto))}" onchange="cambiarCreditoAdmin(this,'monto')"></td>
       <td>${c.entidades?.nombre||'—'}</td>
       <td>${c.origen ? NOMBRES_ORIGEN[c.origen] : '—'}</td>
       <td><span class="pill ${c.estado==='desembolsado'?'pill-des':'pill-rad'}">${c.estado==='desembolsado'?'Desembolsado':'Radicado'}</span></td>
-      <td>${fmtMoney(parseMonto(c.monto))}</td>
-      <td style="font-weight:700">${fmtMoney(comision)}${c.estado==='radicado' ? ' <span style="color:var(--muted);font-weight:400">(proyectado)</span>' : ''}</td>
       <td>${c.estado==='desembolsado' ? (c.fecha_desembolso||'—') : (c.fecha_radicado||'—')}</td>
-    </tr>`).join('') || `<tr><td colspan="9" style="text-align:center;color:var(--muted)">Sin créditos con estos filtros.</td></tr>`;
+      <td style="font-weight:700">${fmtMoney(comisionTitular)}${c.estado==='radicado' ? ' <span style="color:var(--muted);font-weight:400">(proy.)</span>' : ''}</td>
+      <td style="font-weight:700">${fmtMoney(comisionEmpresa)}${c.estado==='radicado' ? ' <span style="color:var(--muted);font-weight:400">(proy.)</span>' : ''}</td>
+      <td>${fmtMoney(total)}</td>
+      <td style="white-space:nowrap"><button class="btn btn-gold" onclick="marcarDesembolsadoAdmin('${c.id}')" style="${c.estado==='desembolsado'?'display:none':''}">✓ Desembolsó</button> <button class="btn btn-ghost" onclick="borrarCreditoAdmin('${c.id}')">Eliminar</button></td>
+    </tr>`).join('') || `<tr><td colspan="12" style="text-align:center;color:var(--muted)">Sin créditos con estos filtros.</td></tr>`;
 }
 
 iniciar();
