@@ -29,6 +29,7 @@ input,select{font-family:'DM Sans',sans-serif;font-size:13.5px;padding:9px 10px;
 .metricas-fila b{color:var(--text);font-size:13.5px;}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
 .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;}
+.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;}
 label{display:block;font-size:10.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;}
 .row-actions{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;}
 .pill{display:inline-block;font-size:10px;font-weight:700;padding:3px 9px;border-radius:12px;text-transform:uppercase;}
@@ -54,7 +55,7 @@ label{display:block;font-size:10.5px;font-weight:700;color:var(--muted);text-tra
 
   <div class="hero">
     <div>
-      <div class="tag">Panel de administrador · v16</div>
+      <div class="tag">Panel de administrador · v17</div>
       <h1 id="nombreAdmin">Credixpertos — puntos</h1>
     </div>
     <div style="display:flex;gap:8px">
@@ -68,6 +69,7 @@ label{display:block;font-size:10.5px;font-weight:700;color:var(--muted);text-tra
     <div class="tab" data-panel="pNiveles" onclick="cambiarTab('pNiveles')">Niveles y tarifas</div>
     <div class="tab" data-panel="pEntidades" onclick="cambiarTab('pEntidades')">Entidades</div>
     <div class="tab" data-panel="pUsuarios" onclick="cambiarTab('pUsuarios')">Usuarios</div>
+    <div class="tab" data-panel="pConsolidado" onclick="cambiarTab('pConsolidado'); cargarConsolidado();">Consolidado</div>
   </div>
 
   <!-- SEGUIMIENTO EN VIVO -->
@@ -87,6 +89,17 @@ label{display:block;font-size:10.5px;font-weight:700;color:var(--muted);text-tra
         <div><label>Entidad</label><select id="oaEntidad"></select></div>
       </div>
       <div class="row-actions"><button class="btn btn-primary" onclick="agregarCreditoOficinaAliada()">+ Agregar crédito</button></div>
+    </div>
+    <div class="card">
+      <h2>Radicar crédito propio (producción de Credixpertos)</h2>
+      <p class="sub">Para créditos que tú mismo gestionas directamente. No genera comisión para nadie — solo cuenta como volumen e ingreso de la empresa. Queda "radicado"; márcalo como desembolsado abajo en "Todos los créditos".</p>
+      <div class="grid4">
+        <div><label>Cliente</label><input type="text" id="propioCliente"></div>
+        <div><label>Cédula</label><input type="text" id="propioCedula"></div>
+        <div><label>Monto</label><input type="text" inputmode="decimal" id="propioMonto" onblur="reformatearInputDinero(this)"></div>
+        <div><label>Entidad</label><select id="propioEntidad"></select></div>
+      </div>
+      <div class="row-actions"><button class="btn btn-primary" onclick="agregarCreditoPropio()">+ Agregar crédito</button></div>
     </div>
     <div class="card">
       <h2>Todos los créditos — este mes</h2>
@@ -188,6 +201,35 @@ label{display:block;font-size:10.5px;font-weight:700;color:var(--muted);text-tra
     </div>
   </div>
 
+  <!-- CONSOLIDADO -->
+  <div class="panel" id="pConsolidado">
+    <div class="card">
+      <h2>Consolidado — radicado y comisión proyectada</h2>
+      <p class="sub">Cliente por cliente, esté o no desembolsado. La comisión se muestra siempre en pesos: si ya se desembolsó es el valor real y congelado; si sigue radicado es una proyección con la configuración vigente hoy (puede variar si cambias tarifas antes del desembolso).</p>
+      <div class="grid3" style="margin-bottom:16px">
+        <div class="mini-card"><b>Radicado pendiente</b><div style="font-size:20px;font-weight:700" id="consTotalRadicado">$0</div></div>
+        <div class="mini-card"><b>Comisión proyectada (pendiente)</b><div style="font-size:20px;font-weight:700" id="consTotalProyectado">$0</div></div>
+        <div class="mini-card"><b>Comisión ya desembolsada</b><div style="font-size:20px;font-weight:700" id="consTotalDesembolsado">$0</div></div>
+      </div>
+      <div class="grid4" style="margin-bottom:14px">
+        <div><label>Entidad</label><select id="consFiltroEntidad" onchange="renderConsolidado()"><option value="">Todas</option></select></div>
+        <div><label>Titular</label><select id="consFiltroTitular" onchange="renderConsolidado()"><option value="">Todos</option></select></div>
+        <div><label>Estado</label>
+          <select id="consFiltroEstado" onchange="renderConsolidado()">
+            <option value="">Todos</option>
+            <option value="radicado">Radicado (pendiente)</option>
+            <option value="desembolsado">Desembolsado</option>
+          </select>
+        </div>
+        <div><label>Cliente / cédula</label><input type="text" id="consFiltroTexto" placeholder="Buscar…" oninput="renderConsolidado()"></div>
+      </div>
+      <table>
+        <thead><tr><th>Cliente</th><th>Cédula</th><th>Titular</th><th>Entidad</th><th>Origen</th><th>Estado</th><th>Monto</th><th>Comisión ($)</th><th>Fecha</th></tr></thead>
+        <tbody id="consolidadoBody"><tr><td colspan="9" style="text-align:center;color:var(--muted)">Cargando…</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
 </div>
 
 <!-- MODAL DE DETALLE POR PERSONA -->
@@ -239,10 +281,15 @@ async function iniciar(){
   await cargarEntidades();
   await cargarUsuarios();
   await cargarOficinaAliada();
+  cargarCreditoPropioUI();
   await cargarSeguimiento();
 
   supabase.channel('admin-creditos')
-    .on('postgres_changes', { event:'*', schema:'public', table:'creditos' }, ()=>{ cargarSeguimiento(); actualizarCalculosEntidades(); })
+    .on('postgres_changes', { event:'*', schema:'public', table:'creditos' }, ()=>{
+      cargarSeguimiento();
+      actualizarCalculosEntidades();
+      if(CONSOLIDADO_CARGADO) cargarConsolidado();
+    })
     .subscribe();
 }
 
@@ -270,6 +317,31 @@ async function agregarCreditoOficinaAliada(){
   document.getElementById('oaCedula').value = '';
   document.getElementById('oaMonto').value = '';
   await cargarSeguimiento();
+}
+
+/* ---------- Crédito propio del admin (producción de Credixpertos) ---------- */
+// No genera comisión para nadie — es volumen/ingreso directo de la
+// empresa. Se guarda con titular_id = el propio admin; la función SQL
+// calcular_puntos_credito() devuelve 0 cuando el rol del titular es
+// 'admin', así que nunca "inventa" una comisión por accidente.
+function cargarCreditoPropioUI(){
+  document.getElementById('propioEntidad').innerHTML = ENTIDADES.map(e=>`<option value="${e.id}">${e.nombre}</option>`).join('');
+}
+async function agregarCreditoPropio(){
+  const monto = parseMonto(document.getElementById('propioMonto').value);
+  const { error } = await supabase.from('creditos').insert({
+    titular_id: PERFIL.id,
+    cliente: document.getElementById('propioCliente').value,
+    cedula_cliente: document.getElementById('propioCedula').value,
+    monto, entidad_id: document.getElementById('propioEntidad').value,
+    origen: 'campana_manual', estado: 'radicado', fecha_radicado: hoyISO(),
+  });
+  if(error){ alert('No se pudo agregar: '+error.message); return; }
+  document.getElementById('propioCliente').value = '';
+  document.getElementById('propioCedula').value = '';
+  document.getElementById('propioMonto').value = '';
+  await cargarSeguimiento();
+  await cargarConsolidado();
 }
 
 function cambiarTab(id){
@@ -703,14 +775,25 @@ async function borrarCreditoAdmin(id){
 }
 
 /* ---------- Modal de detalle por persona ---------- */
-function agruparPorEntidad(filas){
+// IMPORTANTE: puntos_calculados NO significa lo mismo para todos los
+// roles. Para el asesor es literalmente un número de puntos — hay que
+// multiplicarlo por el valor del punto para saber cuánto es en pesos.
+// Para la analista (mercado natural) y la oficina aliada, el valor que
+// se guarda ahí YA está en pesos (no hay que volver a multiplicarlo).
+// Antes esta función sumaba puntos_calculados crudo sin distinguir, y
+// por eso al asesor le aparecían puntos donde debía decir pesos.
+function comisionEnPesos(r, rol, valorPunto){
+  const crudo = +r.puntos_calculados || 0;
+  return rol==='asesor' ? crudo * (valorPunto||0) : crudo;
+}
+function agruparPorEntidad(filas, rol, valorPunto){
   const grupos = {};
   filas.forEach(r=>{
     const nombre = r.entidades?.nombre || 'Sin entidad';
     if(!grupos[nombre]) grupos[nombre] = { cantidad:0, monto:0, valor:0 };
     grupos[nombre].cantidad += 1;
     grupos[nombre].monto += parseMonto(r.monto);
-    grupos[nombre].valor += (+r.puntos_calculados||0);
+    grupos[nombre].valor += comisionEnPesos(r, rol, valorPunto);
   });
   return grupos;
 }
@@ -738,17 +821,21 @@ function abrirDetallePersona(titularId){
     document.getElementById('modalBono').textContent = fmtMoney(totalValor);
   }
 
-  const gruposRad = agruparPorEntidad(radicados);
+  const gruposRad = agruparPorEntidad(radicados, rol, CFG_SEGUIMIENTO ? CFG_SEGUIMIENTO.valor_punto : 0);
   document.getElementById('modalRadicadoBody').innerHTML = Object.entries(gruposRad).map(([ent,d])=>`
     <tr><td>${ent}</td><td>${d.cantidad}</td><td>${fmtMoney(d.monto)}</td></tr>
   `).join('') || `<tr><td colspan="3" style="text-align:center;color:var(--muted)">Nada radicado pendiente este mes.</td></tr>`;
 
-  const gruposDes = agruparPorEntidad(desembolsados);
+  const valorPunto = CFG_SEGUIMIENTO ? CFG_SEGUIMIENTO.valor_punto : 0;
+  const gruposDes = agruparPorEntidad(desembolsados, rol, valorPunto);
   document.getElementById('modalDesembolsadoBody').innerHTML = Object.entries(gruposDes).map(([ent,d])=>`
     <tr><td>${ent}</td><td>${d.cantidad}</td><td>${fmtMoney(d.monto)}</td><td>${fmtMoney(d.valor)}</td></tr>
   `).join('') || `<tr><td colspan="4" style="text-align:center;color:var(--muted)">Nada desembolsado todavía este mes.</td></tr>`;
 
-  // Cliente por cliente — todo el mes, radicado y desembolsado.
+  // Cliente por cliente — todo el mes, radicado y desembolsado. La
+  // columna "Puntos" solo aplica al asesor (los demás roles no manejan
+  // puntos, ya reciben directamente un valor en pesos); "Comisión"
+  // siempre se muestra en pesos, sin importar el rol.
   document.getElementById('modalClientesBody').innerHTML = creditosPersona.map(r=>`
     <tr>
       <td>${r.cliente||'—'}</td>
@@ -756,8 +843,8 @@ function abrirDetallePersona(titularId){
       <td>${r.entidades?.nombre||'—'}</td>
       <td><span class="pill ${r.estado==='desembolsado'?'pill-des':'pill-rad'}">${r.estado==='desembolsado'?'Desembolsado':'Radicado'}</span></td>
       <td>${fmtMoney(parseMonto(r.monto))}</td>
-      <td>${r.estado==='desembolsado' ? fmtNum(r.puntos_calculados) : '—'}</td>
-      <td>${r.estado==='desembolsado' ? fmtMoney(r.puntos_calculados) : '—'}</td>
+      <td>${(r.estado==='desembolsado' && rol==='asesor') ? fmtNum(r.puntos_calculados) : '—'}</td>
+      <td>${r.estado==='desembolsado' ? fmtMoney(comisionEnPesos(r, rol, valorPunto)) : '—'}</td>
     </tr>`).join('') || `<tr><td colspan="7" style="text-align:center;color:var(--muted)">Sin créditos este mes.</td></tr>`;
 
   document.getElementById('modalOverlay').style.display = 'flex';
@@ -766,6 +853,103 @@ function cerrarModal(){
   document.getElementById('modalOverlay').style.display = 'none';
 }
 
+/* ---------- Consolidado: radicado y comisión proyectada ---------- */
+// Trae TODOS los créditos (sin importar el mes) porque lo radicado en
+// un mes puede desembolsarse en otro y sigue siendo "pendiente" hasta
+// entonces. Para lo ya desembolsado usa el valor real y congelado
+// (puntos_calculados). Para lo radicado, proyecta con la configuración
+// y tarifas VIGENTES HOY — es un estimado: si cambias una tarifa antes
+// de que se desembolse, el número proyectado cambiará también.
+let CONSOLIDADO_CREDITOS = [];
+let CONSOLIDADO_CARGADO = false;
+
+function comisionProyectadaCredito(c, tarifasOrigenMapa, cfg, valorPunto){
+  const rol = c.perfiles?.rol;
+  if(c.estado === 'desembolsado'){
+    return comisionEnPesos(c, rol, valorPunto);
+  }
+  // Todavía radicado: no hay puntos_calculados (se congela solo al
+  // desembolsar) — se estima con las reglas vigentes hoy.
+  const millones = millonesExactos(c.monto);
+  const entidadPaga = +c.entidades?.entidad_paga || 0;
+  if(rol === 'asesor'){
+    const pts = (tarifasOrigenMapa[c.entidad_id] || {})[c.origen] || 0;
+    return millones * pts * (valorPunto || 0);
+  }
+  if(rol === 'analista'){
+    return millones * entidadPaga * ((cfg?.porcentaje_analista_mn || 0) / 100);
+  }
+  if(rol === 'oficina_aliada'){
+    return millones * entidadPaga * ((cfg?.porcentaje_oficina_aliada || 0) / 100);
+  }
+  return 0; // admin (producción propia) u otros: sin comisión
+}
+
+async function cargarConsolidado(){
+  const { data } = await supabase.from('creditos')
+    .select('*, perfiles:titular_id(nombre, rol), entidades:entidad_id(nombre, entidad_paga)')
+    .order('created_at', { ascending:false });
+  CONSOLIDADO_CREDITOS = data || [];
+
+  if(!CONSOLIDADO_CARGADO){
+    const selEntidad = document.getElementById('consFiltroEntidad');
+    selEntidad.innerHTML = '<option value="">Todas</option>' + ENTIDADES.map(e=>`<option value="${e.id}">${e.nombre}</option>`).join('');
+
+    const titulares = {};
+    CONSOLIDADO_CREDITOS.forEach(c=>{ if(c.perfiles) titulares[c.titular_id] = c.perfiles; });
+    const selTitular = document.getElementById('consFiltroTitular');
+    const etiquetaRol = { asesor:'Asesor', analista:'Analista', oficina_aliada:'Oficina aliada', admin:'Credixpertos (propio)' };
+    selTitular.innerHTML = '<option value="">Todos</option>' + Object.entries(titulares)
+      .map(([id,p])=>`<option value="${id}">${p.nombre} · ${etiquetaRol[p.rol]||p.rol}</option>`).join('');
+    CONSOLIDADO_CARGADO = true;
+  }
+  await renderConsolidado();
+}
+
+async function renderConsolidado(){
+  const tarifasOrigenMapa = await cargarPuntosEntidadOrigen();
+  const cfg = await configVigente();
+  const valorPunto = cfg ? cfg.valor_punto : 0;
+
+  const fEntidad = document.getElementById('consFiltroEntidad').value;
+  const fTitular = document.getElementById('consFiltroTitular').value;
+  const fEstado = document.getElementById('consFiltroEstado').value;
+  const fTexto = document.getElementById('consFiltroTexto').value.trim().toLowerCase();
+
+  let filas = CONSOLIDADO_CREDITOS.filter(c=>{
+    if(fEntidad && c.entidad_id !== fEntidad) return false;
+    if(fTitular && c.titular_id !== fTitular) return false;
+    if(fEstado && c.estado !== fEstado) return false;
+    if(fTexto && !(`${c.cliente||''} ${c.cedula_cliente||''}`.toLowerCase().includes(fTexto))) return false;
+    return true;
+  });
+
+  let totalRadicado = 0, totalProyectado = 0, totalDesembolsado = 0;
+  const filasConComision = filas.map(c=>{
+    const comision = comisionProyectadaCredito(c, tarifasOrigenMapa, cfg, valorPunto);
+    if(c.estado === 'radicado'){ totalRadicado += parseMonto(c.monto); totalProyectado += comision; }
+    else { totalDesembolsado += comision; }
+    return { c, comision };
+  });
+
+  document.getElementById('consTotalRadicado').textContent = fmtMoney(totalRadicado);
+  document.getElementById('consTotalProyectado').textContent = fmtMoney(totalProyectado);
+  document.getElementById('consTotalDesembolsado').textContent = fmtMoney(totalDesembolsado);
+
+  const etiquetaRol = { asesor:'Asesor', analista:'Analista', oficina_aliada:'Oficina aliada', admin:'Credixpertos (propio)' };
+  document.getElementById('consolidadoBody').innerHTML = filasConComision.map(({c, comision})=>`
+    <tr>
+      <td>${c.cliente||'—'}</td>
+      <td>${c.cedula_cliente||'—'}</td>
+      <td>${c.perfiles?.nombre||'—'} <span style="color:var(--muted)">· ${etiquetaRol[c.perfiles?.rol]||c.perfiles?.rol||'—'}</span></td>
+      <td>${c.entidades?.nombre||'—'}</td>
+      <td>${c.origen ? NOMBRES_ORIGEN[c.origen] : '—'}</td>
+      <td><span class="pill ${c.estado==='desembolsado'?'pill-des':'pill-rad'}">${c.estado==='desembolsado'?'Desembolsado':'Radicado'}</span></td>
+      <td>${fmtMoney(parseMonto(c.monto))}</td>
+      <td style="font-weight:700">${fmtMoney(comision)}${c.estado==='radicado' ? ' <span style="color:var(--muted);font-weight:400">(proyectado)</span>' : ''}</td>
+      <td>${c.estado==='desembolsado' ? (c.fecha_desembolso||'—') : (c.fecha_radicado||'—')}</td>
+    </tr>`).join('') || `<tr><td colspan="9" style="text-align:center;color:var(--muted)">Sin créditos con estos filtros.</td></tr>`;
+}
 
 iniciar();
 </script>
