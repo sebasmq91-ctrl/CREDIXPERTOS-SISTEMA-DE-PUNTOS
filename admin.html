@@ -55,7 +55,7 @@ label{display:block;font-size:10.5px;font-weight:700;color:var(--muted);text-tra
 
   <div class="hero">
     <div>
-      <div class="tag">Panel de administrador · v19</div>
+      <div class="tag">Panel de administrador · v20</div>
       <h1 id="nombreAdmin">Credixpertos — puntos</h1>
     </div>
     <div style="display:flex;gap:8px">
@@ -70,6 +70,7 @@ label{display:block;font-size:10.5px;font-weight:700;color:var(--muted);text-tra
     <div class="tab" data-panel="pEntidades" onclick="cambiarTab('pEntidades')">Entidades</div>
     <div class="tab" data-panel="pUsuarios" onclick="cambiarTab('pUsuarios')">Usuarios</div>
     <div class="tab" data-panel="pConsolidado" onclick="cambiarTab('pConsolidado'); cargarConsolidado();">Consolidado</div>
+    <div class="tab" data-panel="pCierres" onclick="cambiarTab('pCierres'); cargarCierres();">Cierres mensuales</div>
   </div>
 
   <!-- SEGUIMIENTO EN VIVO -->
@@ -245,6 +246,18 @@ label{display:block;font-size:10.5px;font-weight:700;color:var(--muted);text-tra
     </div>
   </div>
 
+  <!-- CIERRES MENSUALES -->
+  <div class="panel" id="pCierres">
+    <div class="card">
+      <h2>Cierres mensuales</h2>
+      <p class="sub">Se cierran solos: cada vez que entras al panel después de que termina un mes, el sistema congela sus números (solo con lo que ya se desembolsó dentro de ese mes exacto) para que siempre los puedas consultar. Haz clic en un mes para ver el detalle por persona.</p>
+      <table>
+        <thead><tr><th>Mes</th><th>Ingreso</th><th>Comisiones pagadas</th><th>Margen</th><th></th></tr></thead>
+        <tbody id="cierresBody"><tr><td colspan="5" style="text-align:center;color:var(--muted)">Cargando…</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
 </div>
 
 <!-- MODAL DE DETALLE POR PERSONA -->
@@ -300,6 +313,8 @@ async function iniciar(){
   cargarCreditoPropioUI();
   await cargarSeguimiento();
   await cargarConsolidado();
+  await cerrarMesesPendientes();
+  await cargarCierres();
 
   supabase.channel('admin-creditos')
     .on('postgres_changes', { event:'*', schema:'public', table:'creditos' }, ()=>{
@@ -997,6 +1012,144 @@ async function renderConsolidado(){
       <td>${fmtMoney(total)}</td>
       <td style="white-space:nowrap"><button class="btn btn-gold" onclick="marcarDesembolsadoAdmin('${c.id}')" style="${c.estado==='desembolsado'?'display:none':''}">✓ Desembolsó</button> <button class="btn btn-ghost" onclick="borrarCreditoAdmin('${c.id}')">Eliminar</button></td>
     </tr>`).join('') || `<tr><td colspan="12" style="text-align:center;color:var(--muted)">Sin créditos con estos filtros.</td></tr>`;
+}
+
+/* ---------- Cierres mensuales ---------- */
+// Calcula los totales de UN mes ya terminado, usando exactamente la
+// misma regla que ahora rige en vivo: solo lo que se desembolsó dentro
+// de ese mes exacto cuenta (ni lo radicado ese mes y aún pendiente, ni
+// lo desembolsado en otro mes). Así un cierre, una vez guardado, nunca
+// va a cambiar aunque sigas operando.
+async function calcularCierreMes(mesISO){
+  const inicio = mesISO + '-01';
+  const fin = primerDiaMesSiguiente(mesISO);
+  const fechaRef = ultimoDiaDelMes(mesISO);
+
+  const { data } = await supabase.from('creditos')
+    .select('*, perfiles:titular_id(nombre, rol), entidades:entidad_id(nombre, entidad_paga)')
+    .eq('estado', 'desembolsado')
+    .gte('fecha_desembolso', inicio)
+    .lt('fecha_desembolso', fin);
+  const desembolsos = data || [];
+
+  const cfg = await configVigente(fechaRef);
+
+  const ingresoTotal = desembolsos.reduce((s,c)=>{
+    if(!c.entidades) return s;
+    return s + millonesExactos(c.monto) * (+c.entidades.entidad_paga||0);
+  }, 0);
+
+  const puntosPorAsesor = {};
+  const montoPorPersona = {};
+  const nombrePorId = {};
+  const rolPorId = {};
+  let costoAnalistaPropios = 0;
+  let costoOficinaAliada = 0;
+  desembolsos.forEach(c=>{
+    const rol = c.perfiles?.rol;
+    const id = c.titular_id;
+    nombrePorId[id] = c.perfiles?.nombre;
+    rolPorId[id] = rol;
+    montoPorPersona[id] = (montoPorPersona[id]||0) + parseMonto(c.monto);
+    if(rol==='analista'){ costoAnalistaPropios += (+c.puntos_calculados||0); return; }
+    if(rol==='oficina_aliada'){ costoOficinaAliada += (+c.puntos_calculados||0); return; }
+    if(rol==='asesor'){ puntosPorAsesor[id] = (puntosPorAsesor[id]||0) + (+c.puntos_calculados||0); }
+  });
+
+  let costoAsesores = 0;
+  const comisionPorAsesor = {};
+  if(cfg){
+    Object.entries(puntosPorAsesor).forEach(([id,pts])=>{
+      const bono = calcBonoAsesor(pts, cfg).bono;
+      comisionPorAsesor[id] = bono;
+      costoAsesores += bono;
+    });
+  }
+
+  const { data: perfilesTodos } = await supabase.from('perfiles').select('id, nombre, rol, analista_id');
+  const analistas = (perfilesTodos||[]).filter(p=>p.rol==='analista');
+  let costoAnalistaEquipoTotal = 0;
+  const comisionEquipoPorAnalista = {};
+  for(const a of analistas){
+    const asesorIds = (perfilesTodos||[]).filter(p=>p.rol==='asesor' && p.analista_id===a.id).map(p=>p.id);
+    const { comisionTotal } = await calcularComisionEquipoAnalista(asesorIds, a.id, mesISO);
+    comisionEquipoPorAnalista[a.id] = comisionTotal;
+    costoAnalistaEquipoTotal += comisionTotal;
+  }
+
+  const costoTotal = costoAsesores + costoAnalistaPropios + costoAnalistaEquipoTotal + costoOficinaAliada;
+  const margen = ingresoTotal - costoTotal;
+
+  const etiquetaRol = { asesor:'Asesor', analista:'Analista', oficina_aliada:'Oficina aliada', admin:'Credixpertos (propio)' };
+  const porPersona = Object.keys(nombrePorId).map(id=>{
+    const rol = rolPorId[id];
+    let comisionTotal = 0;
+    if(rol==='asesor') comisionTotal = comisionPorAsesor[id] || 0;
+    else if(rol==='analista'){
+      const propios = desembolsos.filter(c=>c.titular_id===id).reduce((s,c)=>s+(+c.puntos_calculados||0),0);
+      comisionTotal = propios + (comisionEquipoPorAnalista[id]||0);
+    } else if(rol==='oficina_aliada'){
+      comisionTotal = desembolsos.filter(c=>c.titular_id===id).reduce((s,c)=>s+(+c.puntos_calculados||0),0);
+    }
+    return { nombre: nombrePorId[id], rol: etiquetaRol[rol]||rol, montoDesembolsado: montoPorPersona[id]||0, comisionTotal };
+  });
+
+  return { ingresoTotal, costoTotal, margen, porPersona };
+}
+
+// Revisa si hay meses ya terminados sin cerrar y los cierra solo —
+// sin que el admin tenga que acordarse de darle clic a nada. Se llama
+// cada vez que se abre el panel; si ya está todo cerrado, no hace nada.
+async function cerrarMesesPendientes(){
+  const { data: cierresExistentes } = await supabase.from('cierres_mensuales').select('mes');
+  const mesesConCierre = new Set((cierresExistentes||[]).map(c=>c.mes));
+
+  const { data: primerCredito } = await supabase.from('creditos')
+    .select('fecha_radicado').order('fecha_radicado', { ascending:true }).limit(1).maybeSingle();
+  if(!primerCredito || !primerCredito.fecha_radicado) return;
+
+  let mesIter = primerCredito.fecha_radicado.slice(0,7);
+  const mesActual = mesActualISO();
+  while(mesIter < mesActual){
+    if(!mesesConCierre.has(mesIter)){
+      try{
+        const cierre = await calcularCierreMes(mesIter);
+        await supabase.from('cierres_mensuales').insert({
+          mes: mesIter,
+          ingreso_total: cierre.ingresoTotal,
+          costo_total: cierre.costoTotal,
+          margen: cierre.margen,
+          detalle: { porPersona: cierre.porPersona },
+        });
+      }catch(e){ console.error('No se pudo cerrar el mes '+mesIter, e); }
+    }
+    mesIter = primerDiaMesSiguiente(mesIter).slice(0,7);
+  }
+}
+
+async function cargarCierres(){
+  const { data } = await supabase.from('cierres_mensuales').select('*').order('mes', { ascending:false });
+  const cierres = data || [];
+  document.getElementById('cierresBody').innerHTML = cierres.map(c=>{
+    const margenPct = c.ingreso_total>0 ? Math.round(c.margen/c.ingreso_total*100) : null;
+    const detalleFilas = (c.detalle?.porPersona||[]).map(p=>`
+      <tr><td style="padding-left:24px">${p.nombre}</td><td>${p.rol}</td><td>${fmtMoney(p.montoDesembolsado)}</td><td>${fmtMoney(p.comisionTotal)}</td></tr>
+    `).join('');
+    return `
+      <tr style="cursor:pointer" onclick="const f=this.nextElementSibling; f.style.display = f.style.display==='none' ? '' : 'none';">
+        <td><b>${c.mes}</b></td>
+        <td>${fmtMoney(c.ingreso_total)}</td>
+        <td>${fmtMoney(c.costo_total)}</td>
+        <td class="${c.margen<0?'neg':'pos'}">${fmtMoney(c.margen)}${margenPct!==null?` (${margenPct}%)`:''}</td>
+        <td style="color:var(--cyan)">Ver detalle ▾</td>
+      </tr>
+      <tr style="display:none"><td colspan="5" style="padding:0 0 10px">
+        <table style="margin:0">
+          <thead><tr><th style="padding-left:24px">Persona</th><th>Rol</th><th>Desembolsado</th><th>Comisión</th></tr></thead>
+          <tbody>${detalleFilas || '<tr><td colspan="4" style="text-align:center;color:var(--muted)">Sin movimientos ese mes.</td></tr>'}</tbody>
+        </table>
+      </td></tr>`;
+  }).join('') || `<tr><td colspan="5" style="text-align:center;color:var(--muted)">Todavía no hay meses cerrados — se cierran solos apenas termine el mes en curso.</td></tr>`;
 }
 
 iniciar();

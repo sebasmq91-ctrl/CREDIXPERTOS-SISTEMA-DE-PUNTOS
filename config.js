@@ -78,10 +78,12 @@ async function cerrarSesion(){
 // versiones el mismo día (por ejemplo corrigiendo algo), sin este
 // desempate el orden entre ellas queda indefinido y a veces "gana"
 // la vieja por error — con created_at siempre gana la más reciente.
-async function configVigente(){
+// fecha (opcional): para saber qué configuración estaba vigente en una
+// fecha pasada — lo usa el cierre mensual histórico. Por defecto, hoy.
+async function configVigente(fecha){
   const { data, error } = await supabase
     .from('config_niveles_historial').select('*')
-    .lte('vigente_desde', hoyISO())
+    .lte('vigente_desde', fecha || hoyISO())
     .order('vigente_desde', { ascending:false })
     .order('created_at', { ascending:false })
     .limit(1).single();
@@ -147,10 +149,12 @@ function calcularExcedenteYComision(creditosOrdenados, umbralMillones, valorPunt
   return { comisionTotal, excedenteTotal, acumuladoMillones:acumulado, porCredito };
 }
 
-// Trae la tarifa de analista vigente HOY para cada entidad.
-async function mapaTarifaAnalistaPorEntidad(){
+// Trae la tarifa de analista vigente para cada entidad en una fecha
+// dada (hoy por defecto) — lo usa el cierre mensual histórico para
+// saber qué tarifa regía en un mes pasado.
+async function mapaTarifaAnalistaPorEntidad(fecha){
   const { data } = await supabase.from('tarifa_analista_equipo_historial').select('*')
-    .lte('vigente_desde', hoyISO())
+    .lte('vigente_desde', fecha || hoyISO())
     .order('vigente_desde', { ascending:false })
     .order('created_at', { ascending:false });
   const mapa = {};
@@ -158,10 +162,30 @@ async function mapaTarifaAnalistaPorEntidad(){
   return mapa;
 }
 
+// Primer día del mes siguiente a mesISO ('YYYY-MM') — límite superior
+// (exclusivo) para acotar una consulta a un mes exacto.
+function primerDiaMesSiguiente(mesISO){
+  const [y,m] = mesISO.split('-').map(Number);
+  return new Date(Date.UTC(y, m, 1)).toISOString().slice(0,10); // m ya es el índice 0-based del mes siguiente
+}
+// Último día calendario de mesISO — se usa como "fecha" de referencia
+// para saber qué configuración/tarifa regía durante ese mes.
+function ultimoDiaDelMes(mesISO){
+  const [y,m] = mesISO.split('-').map(Number);
+  return new Date(Date.UTC(y, m, 0)).toISOString().slice(0,10); // día 0 del mes siguiente = último día de este mes
+}
+
 // Calcula la comisión de equipo completa (bancos + financieras) para
-// un conjunto de asesores este mes. asesorIds=null cuenta TODOS los
-// asesores (útil para el costo total de la empresa); pasar una lista
-// de ids cuenta solo esos asesores (los asignados a una analista).
+// un conjunto de asesores, en el mes indicado (el actual por defecto).
+// asesorIds=null cuenta TODOS los asesores (útil para el costo total
+// de la empresa); pasar una lista de ids cuenta solo esos asesores
+// (los asignados a una analista).
+//
+// IMPORTANTE: el colchón y la comisión de equipo se calculan SOLO con
+// lo que ya se desembolsó dentro de ese mes exacto (fecha_desembolso),
+// nunca con lo radicado — así un crédito nunca "llena colchón" en el
+// mes que se radica y luego vuelve a aparecer en el mes que se
+// desembolsa. Cuenta una sola vez, en el mes real del desembolso.
 //
 // analistaId (opcional): además de los créditos de esos asesores,
 // suma los créditos de oficina aliada o de producción propia del
@@ -171,12 +195,18 @@ async function mapaTarifaAnalistaPorEntidad(){
 // intervino. Si no se pasa analistaId (asesorIds=null, cálculo para
 // TODA la empresa), se incluyen todos los créditos gestionados sin
 // importar cuál analista quedó asignada.
-async function calcularComisionEquipoAnalista(asesorIds, analistaId){
-  const inicioMes = mesActualISO() + '-01';
+async function calcularComisionEquipoAnalista(asesorIds, analistaId, mesISO){
+  mesISO = mesISO || mesActualISO();
+  const inicio = mesISO + '-01';
+  const fin = primerDiaMesSiguiente(mesISO);
+  const fechaRef = ultimoDiaDelMes(mesISO);
+
   const { data } = await supabase.from('creditos')
-    .select('id, monto, estado, entidad_id, titular_id, analista_gestion_id, created_at, entidades:entidad_id(tipo), perfiles:titular_id(rol)')
-    .or(`fecha_radicado.gte.${inicioMes},fecha_desembolso.gte.${inicioMes}`)
-    .order('created_at', { ascending:true });
+    .select('id, monto, estado, entidad_id, titular_id, analista_gestion_id, fecha_desembolso, entidades:entidad_id(tipo), perfiles:titular_id(rol)')
+    .eq('estado', 'desembolsado')
+    .gte('fecha_desembolso', inicio)
+    .lt('fecha_desembolso', fin)
+    .order('fecha_desembolso', { ascending:true });
   const todos = data || [];
   let creditosAsesor = todos.filter(c=>c.perfiles?.rol==='asesor');
   if(asesorIds) creditosAsesor = creditosAsesor.filter(c=>asesorIds.includes(c.titular_id));
@@ -186,11 +216,10 @@ async function calcularComisionEquipoAnalista(asesorIds, analistaId){
   );
   if(analistaId) creditosGestionados = creditosGestionados.filter(c=>c.analista_gestion_id===analistaId);
 
-  let creditos = creditosAsesor.concat(creditosGestionados)
-    .sort((a,b)=> new Date(a.created_at) - new Date(b.created_at));
+  let creditos = creditosAsesor.concat(creditosGestionados);
 
-  const cfg = await configVigente();
-  const tarifaPorEntidad = await mapaTarifaAnalistaPorEntidad();
+  const cfg = await configVigente(fechaRef);
+  const tarifaPorEntidad = await mapaTarifaAnalistaPorEntidad(fechaRef);
   const valorPunto = cfg ? cfg.valor_punto : 0;
 
   const resultado = {};
