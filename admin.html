@@ -55,7 +55,7 @@ label{display:block;font-size:10.5px;font-weight:700;color:var(--muted);text-tra
 
   <div class="hero">
     <div>
-      <div class="tag">Panel de administrador · v20</div>
+      <div class="tag">Panel de administrador · v21</div>
       <h1 id="nombreAdmin">Credixpertos — puntos</h1>
     </div>
     <div style="display:flex;gap:8px">
@@ -250,7 +250,7 @@ label{display:block;font-size:10.5px;font-weight:700;color:var(--muted);text-tra
   <div class="panel" id="pCierres">
     <div class="card">
       <h2>Cierres mensuales</h2>
-      <p class="sub">Se cierran solos: cada vez que entras al panel después de que termina un mes, el sistema congela sus números (solo con lo que ya se desembolsó dentro de ese mes exacto) para que siempre los puedas consultar. Haz clic en un mes para ver el detalle por persona.</p>
+      <p class="sub">Se cierran solos: cada vez que entras al panel después de que termina un mes, el sistema congela sus números (solo con lo que ya se desembolsó dentro de ese mes exacto) para que siempre los puedas consultar. Haz clic en un mes para ver el detalle cliente por cliente — cada crédito con su titular, lo que le correspondió a él y lo que le quedó a Credixpertos.</p>
       <table>
         <thead><tr><th>Mes</th><th>Ingreso</th><th>Comisiones pagadas</th><th>Margen</th><th></th></tr></thead>
         <tbody id="cierresBody"><tr><td colspan="5" style="text-align:center;color:var(--muted)">Cargando…</td></tr></tbody>
@@ -1080,21 +1080,38 @@ async function calcularCierreMes(mesISO){
   const costoTotal = costoAsesores + costoAnalistaPropios + costoAnalistaEquipoTotal + costoOficinaAliada;
   const margen = ingresoTotal - costoTotal;
 
+  // Detalle CLIENTE POR CLIENTE (no agrupado por persona) — para cada
+  // crédito desembolsado ese mes: quién lo tenía (cliente + titular),
+  // cuánto le correspondió a esa persona ("comisión titular") y cuánto
+  // le quedó a Credixpertos ("comisión empresa" = lo que paga la
+  // entidad menos la comisión del titular). Para el asesor, la
+  // "comisión titular" es solo la parte variable (puntos × valor del
+  // punto) — el garantizado por nivel no es atribuible a un crédito
+  // puntual, así que no aparece aquí (sí está incluido en el total de
+  // "Comisiones pagadas" de arriba, que es el número exacto).
   const etiquetaRol = { asesor:'Asesor', analista:'Analista', oficina_aliada:'Oficina aliada', admin:'Credixpertos (propio)' };
-  const porPersona = Object.keys(nombrePorId).map(id=>{
-    const rol = rolPorId[id];
-    let comisionTotal = 0;
-    if(rol==='asesor') comisionTotal = comisionPorAsesor[id] || 0;
-    else if(rol==='analista'){
-      const propios = desembolsos.filter(c=>c.titular_id===id).reduce((s,c)=>s+(+c.puntos_calculados||0),0);
-      comisionTotal = propios + (comisionEquipoPorAnalista[id]||0);
-    } else if(rol==='oficina_aliada'){
-      comisionTotal = desembolsos.filter(c=>c.titular_id===id).reduce((s,c)=>s+(+c.puntos_calculados||0),0);
-    }
-    return { nombre: nombrePorId[id], rol: etiquetaRol[rol]||rol, montoDesembolsado: montoPorPersona[id]||0, comisionTotal };
-  });
+  const valorPunto = cfg ? cfg.valor_punto : 0;
+  const porCredito = desembolsos.map(c=>{
+    const rol = c.perfiles?.rol;
+    const ingreso = millonesExactos(c.monto) * (+c.entidades?.entidad_paga||0);
+    let comisionTitular = 0;
+    if(rol==='asesor') comisionTitular = (+c.puntos_calculados||0) * valorPunto;
+    else if(rol==='analista' || rol==='oficina_aliada') comisionTitular = (+c.puntos_calculados||0);
+    // admin (producción propia): 0 — ya cubierto por el default.
+    return {
+      cliente: c.cliente || '—',
+      titular: c.perfiles?.nombre || '—',
+      rol: etiquetaRol[rol] || rol || '—',
+      entidad: c.entidades?.nombre || '—',
+      monto: parseMonto(c.monto),
+      comisionTitular,
+      comisionEmpresa: ingreso - comisionTitular,
+      total: ingreso,
+      fecha: c.fecha_desembolso,
+    };
+  }).sort((a,b)=> (a.fecha||'').localeCompare(b.fecha||''));
 
-  return { ingresoTotal, costoTotal, margen, porPersona };
+  return { ingresoTotal, costoTotal, margen, porCredito };
 }
 
 // Revisa si hay meses ya terminados sin cerrar y los cierra solo —
@@ -1119,7 +1136,7 @@ async function cerrarMesesPendientes(){
           ingreso_total: cierre.ingresoTotal,
           costo_total: cierre.costoTotal,
           margen: cierre.margen,
-          detalle: { porPersona: cierre.porPersona },
+          detalle: { porCredito: cierre.porCredito },
         });
       }catch(e){ console.error('No se pudo cerrar el mes '+mesIter, e); }
     }
@@ -1132,9 +1149,16 @@ async function cargarCierres(){
   const cierres = data || [];
   document.getElementById('cierresBody').innerHTML = cierres.map(c=>{
     const margenPct = c.ingreso_total>0 ? Math.round(c.margen/c.ingreso_total*100) : null;
-    const detalleFilas = (c.detalle?.porPersona||[]).map(p=>`
-      <tr><td style="padding-left:24px">${p.nombre}</td><td>${p.rol}</td><td>${fmtMoney(p.montoDesembolsado)}</td><td>${fmtMoney(p.comisionTotal)}</td></tr>
-    `).join('');
+    const detalleFilas = (c.detalle?.porCredito||[]).map(p=>`
+      <tr>
+        <td style="padding-left:24px">${p.cliente}</td>
+        <td>${p.titular} <span style="color:var(--muted)">· ${p.rol}</span></td>
+        <td>${p.entidad}</td>
+        <td>${fmtMoney(p.monto)}</td>
+        <td>${fmtMoney(p.comisionTitular)}</td>
+        <td>${fmtMoney(p.comisionEmpresa)}</td>
+        <td>${fmtMoney(p.total)}</td>
+      </tr>`).join('');
     return `
       <tr style="cursor:pointer" onclick="const f=this.nextElementSibling; f.style.display = f.style.display==='none' ? '' : 'none';">
         <td><b>${c.mes}</b></td>
@@ -1145,8 +1169,8 @@ async function cargarCierres(){
       </tr>
       <tr style="display:none"><td colspan="5" style="padding:0 0 10px">
         <table style="margin:0">
-          <thead><tr><th style="padding-left:24px">Persona</th><th>Rol</th><th>Desembolsado</th><th>Comisión</th></tr></thead>
-          <tbody>${detalleFilas || '<tr><td colspan="4" style="text-align:center;color:var(--muted)">Sin movimientos ese mes.</td></tr>'}</tbody>
+          <thead><tr><th style="padding-left:24px">Cliente</th><th>Titular</th><th>Entidad</th><th>Monto</th><th>Comisión titular</th><th>Comisión empresa</th><th>Total</th></tr></thead>
+          <tbody>${detalleFilas || '<tr><td colspan="7" style="text-align:center;color:var(--muted)">Sin movimientos ese mes.</td></tr>'}</tbody>
         </table>
       </td></tr>`;
   }).join('') || `<tr><td colspan="5" style="text-align:center;color:var(--muted)">Todavía no hay meses cerrados — se cierran solos apenas termine el mes en curso.</td></tr>`;
