@@ -55,7 +55,7 @@ label{display:block;font-size:10.5px;font-weight:700;color:var(--muted);text-tra
 
   <div class="hero">
     <div>
-      <div class="tag">Panel de administrador · v21</div>
+      <div class="tag">Panel de administrador · v22</div>
       <h1 id="nombreAdmin">Credixpertos — puntos</h1>
     </div>
     <div style="display:flex;gap:8px">
@@ -212,7 +212,7 @@ label{display:block;font-size:10.5px;font-weight:700;color:var(--muted);text-tra
   <div class="panel" id="pConsolidado">
     <div class="card">
       <h2>Consolidado — todos los créditos</h2>
-      <p class="sub">Cliente por cliente, esté o no desembolsado. Puedes editar cualquier fila, marcarla como desembolsada o eliminarla — reemplaza la tabla "Todos los créditos". La comisión se muestra siempre en pesos: si ya se desembolsó es el valor real y congelado; si sigue radicado es una proyección con la configuración vigente hoy (puede variar si cambias tarifas antes del desembolso).</p>
+      <p class="sub">Cliente por cliente: lo que sigue radicado (de cualquier mes) y lo ya desembolsado del mes en curso. Puedes editar cualquier fila, marcarla como desembolsada o eliminarla — reemplaza la tabla "Todos los créditos". La comisión se muestra siempre en pesos: si ya se desembolsó es el valor real y congelado; si sigue radicado es una proyección con la configuración vigente hoy (puede variar si cambias tarifas antes del desembolso). Al cambiar de mes, lo ya desembolsado el mes anterior sale de esta vista y queda guardado en "Cierres mensuales".</p>
       <p class="sub" style="margin-top:-8px"><b style="color:var(--text)">Comisión titular</b> = lo que le corresponde al asesor/analista/oficina aliada · <b style="color:var(--text)">Comisión empresa</b> = lo que le queda a Credixpertos · <b style="color:var(--text)">Total</b> = lo que paga la entidad por ese crédito.</p>
       <div class="grid3" style="margin-bottom:10px">
         <div class="mini-card"><b>Radicado pendiente ($)</b><div style="font-size:19px;font-weight:700" id="consMontoRadicado">$0</div></div>
@@ -934,8 +934,15 @@ function comisionProyectadaCredito(c, tarifasOrigenMapa, cfg, valorPunto){
 }
 
 async function cargarConsolidado(){
+  // Esta vista es para lo "vivo": lo que aún está radicado (sin
+  // importar de qué mes sea) y lo que ya se desembolsó PERO dentro del
+  // mes en curso. Un crédito desembolsado de un mes anterior ya quedó
+  // fijo en su cierre mensual (pestaña "Cierres mensuales") — mostrarlo
+  // aquí también es ruido que no aporta nada día a día.
+  const inicioMes = mesActualISO() + '-01';
   const { data } = await supabase.from('creditos')
     .select('*, perfiles:titular_id(nombre, rol), entidades:entidad_id(nombre, entidad_paga), gestion:analista_gestion_id(nombre)')
+    .or(`estado.eq.radicado,fecha_desembolso.gte.${inicioMes}`)
     .order('created_at', { ascending:false });
   CONSOLIDADO_CREDITOS = data || [];
 
