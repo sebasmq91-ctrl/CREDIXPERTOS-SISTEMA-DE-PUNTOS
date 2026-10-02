@@ -47,7 +47,7 @@ label{display:block;font-size:10.5px;font-weight:700;color:var(--muted);text-tra
 
   <div class="hero">
     <div>
-      <div class="tag">Analista de crédito · v8</div>
+      <div class="tag">Analista de crédito · v9</div>
       <h1 id="nombreAnalista">Mi trabajo</h1>
     </div>
     <button class="btn btn-salir" onclick="cerrarSesion()">Salir</button>
@@ -64,9 +64,18 @@ label{display:block;font-size:10.5px;font-weight:700;color:var(--muted);text-tra
     <div class="row-actions"><button class="btn btn-ghost" onclick="addRadicacion()">+ Agregar crédito radicado</button></div>
   </div>
 
+  <!-- SELECTOR DE MES -->
+  <div class="card">
+    <h2>2 · Mes a consultar</h2>
+    <p class="sub">Por defecto ves el mes en curso. Elige un mes anterior para revisar lo que te pagaron o para generar la cuenta de cobro de ese mes — nada se borra al cambiar de mes, toda tu historia queda disponible aquí.</p>
+    <div class="grid2" style="margin-bottom:0">
+      <div><label>Mes</label><select id="selMes" onchange="cambiarMes()"></select></div>
+    </div>
+  </div>
+
   <!-- MIS DESEMBOLSADOS -->
   <div class="card">
-    <h2>2 · Tus créditos desembolsados este mes</h2>
+    <h2>3 · Tus créditos desembolsados en <span id="mesEtiquetaDesembolsados">—</span></h2>
     <table>
       <thead><tr><th>Fecha</th><th>Cliente</th><th>Cédula</th><th>Monto ($)</th><th>Entidad</th><th>Origen</th><th>Valor generado</th><th></th></tr></thead>
       <tbody id="regBody"></tbody>
@@ -75,9 +84,9 @@ label{display:block;font-size:10.5px;font-weight:700;color:var(--muted);text-tra
 
   <!-- PROGRESO -->
   <div class="card">
-    <h2>3 · Tu pago este mes</h2>
+    <h2>4 · Tu pago en <span id="mesEtiquetaPago">—</span></h2>
     <div class="puntos-hero">
-      <div class="lbl">Total a cobrar este mes</div>
+      <div class="lbl">Total a cobrar en <span id="mesEtiquetaHero">—</span></div>
       <div class="val" id="valorTotal" style="font-size:40px">$0</div>
       <div class="desglose">
         <div class="item">
@@ -96,7 +105,7 @@ label{display:block;font-size:10.5px;font-weight:700;color:var(--muted);text-tra
 
   <!-- CUENTA DE COBRO -->
   <div class="card">
-    <h2>4 · Genera tu cuenta de cobro</h2>
+    <h2>5 · Genera tu cuenta de cobro de <span id="mesEtiquetaCC">—</span></h2>
     <div class="grid2">
       <div><label>Nombre completo</label><input type="text" id="ccNombre"></div>
       <div><label>Cédula</label><input type="text" id="ccCedula"></div>
@@ -112,7 +121,7 @@ label{display:block;font-size:10.5px;font-weight:700;color:var(--muted);text-tra
 
   <!-- VISTA DE TODOS — SOLO LECTURA -->
   <div class="card">
-    <h2>5 · Seguimiento de todo el equipo (este mes)</h2>
+    <h2>6 · Seguimiento de todo el equipo (este mes)</h2>
     <p class="sub">Puedes ver el avance de todos en tiempo real. Esta tabla es solo de consulta — no puedes editarla desde aquí.</p>
     <table>
       <thead><tr><th>Asesor / analista</th><th>Cliente</th><th>Cédula</th><th>Entidad</th><th>Estado</th><th>Fecha</th></tr></thead>
@@ -154,6 +163,37 @@ let PUNTOS_MAPA = {};
 let CFG = null;
 let CC = { nombre:'', cedula:'', banco:'', cuenta:'' };
 let VALOR_PROPIOS_MES = 0; // se guarda aparte para no tener que releer un "$29.000" ya formateado
+let MES_SELECCIONADO = ''; // 'YYYY-MM' — ninguna fila de creditos se borra nunca al cambiar de mes,
+                            // así que todo el historial sigue consultable eligiendo el mes aquí.
+
+// Últimos n meses (incluye el actual), más reciente primero — no hace
+// falta consultar la base para armar la lista, solo calendario.
+function listaMesesDisponibles(n){
+  const hoy = new Date();
+  const meses = [];
+  for(let i=0;i<n;i++){
+    const d = new Date(Date.UTC(hoy.getUTCFullYear(), hoy.getUTCMonth()-i, 1));
+    const y = d.getUTCFullYear(), m = String(d.getUTCMonth()+1).padStart(2,'0');
+    const etiqueta = d.toLocaleDateString('es-CO', { month:'long', year:'numeric', timeZone:'UTC' });
+    meses.push({ valor: `${y}-${m}`, etiqueta: etiqueta.charAt(0).toUpperCase()+etiqueta.slice(1) });
+  }
+  return meses;
+}
+function etiquetaDeMes(mesISO){
+  const m = listaMesesDisponibles(36).find(x=>x.valor===mesISO);
+  return m ? m.etiqueta : mesISO;
+}
+function actualizarEtiquetasMes(){
+  const etiqueta = etiquetaDeMes(MES_SELECCIONADO);
+  ['mesEtiquetaDesembolsados','mesEtiquetaPago','mesEtiquetaHero','mesEtiquetaCC'].forEach(id=>{
+    const el = document.getElementById(id);
+    if(el) el.textContent = etiqueta;
+  });
+}
+async function cambiarMes(){
+  MES_SELECCIONADO = document.getElementById('selMes').value;
+  await renderMes();
+}
 
 async function iniciar(){
   const sesion = await exigirSesion(['analista']);
@@ -161,6 +201,11 @@ async function iniciar(){
   PERFIL = sesion.perfil;
   document.getElementById('nombreAnalista').textContent = 'Hola, ' + PERFIL.nombre;
   document.getElementById('app').style.display = '';
+
+  MES_SELECCIONADO = mesActualISO();
+  const selMes = document.getElementById('selMes');
+  selMes.innerHTML = listaMesesDisponibles(12).map(m=>`<option value="${m.valor}">${m.etiqueta}</option>`).join('');
+  selMes.value = MES_SELECCIONADO;
 
   const { data: entidadesData } = await supabase.from('entidades').select('*').eq('activo', true).order('nombre');
   ENTIDADES = entidadesData || [];
@@ -219,19 +264,29 @@ async function renderTodo(){
     .eq('titular_id', PERFIL.id).eq('estado', 'radicado').order('created_at');
   renderRadicados(radicados || []);
 
-  const inicioMes = mesActualISO() + '-01';
+  await renderMes();
+  await cargarEquipo();
+}
+
+// Todo lo que depende del mes elegido en el selector: sus desembolsos
+// propios de ese mes y su pago (propios + equipo) de ese mes. Se
+// recalcula cada vez que cambia el selector, sin tocar la sección de
+// radicados pendientes (esa siempre es "hoy", no depende de un mes).
+async function renderMes(){
+  actualizarEtiquetasMes();
+  const inicio = MES_SELECCIONADO + '-01';
+  const fin = primerDiaMesSiguiente(MES_SELECCIONADO);
   const { data: desembolsados } = await supabase.from('creditos').select('*')
     .eq('titular_id', PERFIL.id).eq('estado', 'desembolsado')
-    .gte('fecha_desembolso', inicioMes).order('fecha_desembolso');
+    .gte('fecha_desembolso', inicio).lt('fecha_desembolso', fin).order('fecha_desembolso');
   renderDesembolsados(desembolsados || []);
 
   const valorPropios = (desembolsados||[]).reduce((s,r)=>s+(+r.puntos_calculados||0),0);
   VALOR_PROPIOS_MES = valorPropios;
   document.getElementById('valorPropios').textContent = fmtMoney(valorPropios);
-  document.getElementById('detallePropios').textContent = (desembolsados||[]).length + ' crédito(s) propio(s) este mes';
+  document.getElementById('detallePropios').textContent = (desembolsados||[]).length + ' crédito(s) propio(s) en este mes';
 
   await recalcularValorEquipo();
-  await cargarEquipo();
 }
 
 // Su pago por procesar los créditos de los asesores QUE TIENE
@@ -244,7 +299,7 @@ async function recalcularValorEquipo(){
   // Se le pasa su propio id para que, además de sus asesores, solo se
   // sumen los créditos de oficina aliada/propios que el admin marcó
   // explícitamente como gestionados por ELLA — nunca los de otra analista.
-  const { comisionTotal, detalle } = await calcularComisionEquipoAnalista(asesorIds, PERFIL.id);
+  const { comisionTotal, detalle } = await calcularComisionEquipoAnalista(asesorIds, PERFIL.id, MES_SELECCIONADO);
 
   document.getElementById('valorEquipo').textContent = fmtMoney(comisionTotal);
   document.getElementById('detalleEquipo').textContent =
@@ -283,7 +338,7 @@ function renderDesembolsados(filas){
       <td>${NOMBRES_ORIGEN[r.origen]||'—'}</td>
       <td style="font-weight:700;color:var(--brand)">${fmtMoney(r.puntos_calculados)}</td>
       <td><button class="del-x" onclick="borrarCredito('${r.id}')">✕</button></td>
-    </tr>`).join('') || `<tr><td colspan="8" style="text-align:center;color:var(--muted)">Aún no tienes desembolsos este mes.</td></tr>`;
+    </tr>`).join('') || `<tr><td colspan="8" style="text-align:center;color:var(--muted)">Sin desembolsos en ${etiquetaDeMes(MES_SELECCIONADO)}.</td></tr>`;
 }
 async function cargarEquipo(){
   const inicioMes = mesActualISO() + '-01';
@@ -347,15 +402,17 @@ async function guardarCC(){
   alert('Datos guardados.');
 }
 async function imprimirCC(){
-  const inicioMes = mesActualISO() + '-01';
+  const inicio = MES_SELECCIONADO + '-01';
+  const fin = primerDiaMesSiguiente(MES_SELECCIONADO);
   const { data: desembolsados } = await supabase.from('creditos').select('*')
-    .eq('titular_id', PERFIL.id).eq('estado', 'desembolsado').gte('fecha_desembolso', inicioMes)
+    .eq('titular_id', PERFIL.id).eq('estado', 'desembolsado')
+    .gte('fecha_desembolso', inicio).lt('fecha_desembolso', fin)
     .order('fecha_desembolso');
   const filas = desembolsados || [];
   const valorPropios = filas.reduce((s,r)=>s+(+r.puntos_calculados||0),0);
   const valorEquipo = await recalcularValorEquipo();
 
-  document.getElementById('ccFecha').textContent = new Date().toLocaleDateString('es-CO',{day:'numeric',month:'long',year:'numeric'});
+  document.getElementById('ccFecha').textContent = 'Correspondiente a ' + etiquetaDeMes(MES_SELECCIONADO) + ' · generada el ' + new Date().toLocaleDateString('es-CO',{day:'numeric',month:'long',year:'numeric'});
   document.getElementById('ccPdfNombre').textContent = CC.nombre || '—';
   document.getElementById('ccPdfCedula').textContent = CC.cedula || '—';
   document.getElementById('ccPdfCuenta').textContent = (CC.banco||'—') + ' · ' + (CC.cuenta||'—');
