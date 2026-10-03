@@ -47,7 +47,7 @@ label{display:block;font-size:10.5px;font-weight:700;color:var(--muted);text-tra
 
   <div class="hero">
     <div>
-      <div class="tag">Analista de crédito · v9</div>
+      <div class="tag">Analista de crédito · v11</div>
       <h1 id="nombreAnalista">Mi trabajo</h1>
     </div>
     <button class="btn btn-salir" onclick="cerrarSesion()">Salir</button>
@@ -100,6 +100,10 @@ label{display:block;font-size:10.5px;font-weight:700;color:var(--muted);text-tra
           <div style="font-size:11px;color:rgba(255,255,255,0.6);margin-top:4px" id="detallePropios">—</div>
         </div>
       </div>
+      <div class="item" id="itemAcelerador" style="display:none;margin-top:14px;background:rgba(0,180,200,0.18)">
+        <div class="lbl" style="margin-bottom:4px" id="aceleradorLbl">Acelerador</div>
+        <div class="val" id="valorAcelerador" style="font-size:20px">$0</div>
+      </div>
     </div>
   </div>
 
@@ -150,7 +154,18 @@ label{display:block;font-size:10.5px;font-weight:700;color:var(--muted);text-tra
     <div style="background:#F8F6F1;border-radius:10px;padding:14px 18px">
       <div style="display:flex;justify-content:space-between;font-size:13px;color:#6B7280"><span>Por procesar al equipo</span><b id="ccPdfEquipo">$0</b></div>
       <div style="display:flex;justify-content:space-between;font-size:13px;color:#6B7280"><span>Por tus propios clientes</span><b id="ccPdfPropios">$0</b></div>
+      <div id="ccPdfFilaAcelerador" style="display:none;justify-content:space-between;font-size:13px;color:#166534;margin-top:4px"><span id="ccPdfAceleradorLbl">Acelerador</span><b id="ccPdfAcelerador">$0</b></div>
       <div style="display:flex;justify-content:space-between;font-size:15px;border-top:1px solid #E2D9CF;padding-top:8px;margin-top:6px"><span style="color:#0A2540;font-weight:700">Valor a pagar</span><b style="color:#0A2540;font-size:20px" id="ccPdfValor">$0</b></div>
+    </div>
+    <div style="display:flex;gap:40px;margin-top:50px">
+      <div style="flex:1;text-align:center">
+        <div style="border-top:1px solid #1C1C2E;padding-top:6px;font-size:12px;color:#0A2540;font-weight:700" id="ccPdfFirmaNombre">—</div>
+        <div style="font-size:11px;color:#6B7280">Firma de la analista</div>
+      </div>
+      <div style="flex:1;text-align:center">
+        <div style="border-top:1px solid #1C1C2E;padding-top:6px;font-size:12px;color:#0A2540;font-weight:700">Sebastián Molina Quintero</div>
+        <div style="font-size:11px;color:#6B7280">Firma del gerente comercial</div>
+      </div>
     </div>
   </div>
 </div>
@@ -163,6 +178,7 @@ let PUNTOS_MAPA = {};
 let CFG = null;
 let CC = { nombre:'', cedula:'', banco:'', cuenta:'' };
 let VALOR_PROPIOS_MES = 0; // se guarda aparte para no tener que releer un "$29.000" ya formateado
+let ACELERADORES_MES = []; // [{monto, motivo}] del mes elegido — bonos puntuales que el admin otorga a mano
 let MES_SELECCIONADO = ''; // 'YYYY-MM' — ninguna fila de creditos se borra nunca al cambiar de mes,
                             // así que todo el historial sigue consultable eligiendo el mes aquí.
 
@@ -286,6 +302,10 @@ async function renderMes(){
   document.getElementById('valorPropios').textContent = fmtMoney(valorPropios);
   document.getElementById('detallePropios').textContent = (desembolsados||[]).length + ' crédito(s) propio(s) en este mes';
 
+  const { data: aceleradores } = await supabase.from('aceleradores').select('monto, motivo')
+    .eq('perfil_id', PERFIL.id).eq('mes', MES_SELECCIONADO);
+  ACELERADORES_MES = aceleradores || [];
+
   await recalcularValorEquipo();
 }
 
@@ -306,7 +326,18 @@ async function recalcularValorEquipo(){
     `Bancos: ${fmtNum(detalle.BANCO.acumuladoMillones)} de ${fmtNum(UMBRAL_ANALISTA_MILLONES.BANCO)} millones (umbral) · `
     + `Financieras: ${fmtNum(detalle.FINANCIERA.acumuladoMillones)} de ${fmtNum(UMBRAL_ANALISTA_MILLONES.FINANCIERA)} millones (umbral)`;
 
-  document.getElementById('valorTotal').textContent = fmtMoney(comisionTotal + VALOR_PROPIOS_MES);
+  const totalAcelerador = ACELERADORES_MES.reduce((s,a)=>s+(+a.monto||0),0);
+  const itemAcelerador = document.getElementById('itemAcelerador');
+  if(totalAcelerador > 0){
+    itemAcelerador.style.display = '';
+    const motivos = ACELERADORES_MES.map(a=>a.motivo).filter(Boolean).join(' · ');
+    document.getElementById('aceleradorLbl').textContent = 'Acelerador' + (motivos ? ' — ' + motivos : '');
+    document.getElementById('valorAcelerador').textContent = fmtMoney(totalAcelerador);
+  } else {
+    itemAcelerador.style.display = 'none';
+  }
+
+  document.getElementById('valorTotal').textContent = fmtMoney(comisionTotal + VALOR_PROPIOS_MES + totalAcelerador);
   return comisionTotal;
 }
 
@@ -415,10 +446,21 @@ async function imprimirCC(){
   document.getElementById('ccFecha').textContent = 'Correspondiente a ' + etiquetaDeMes(MES_SELECCIONADO) + ' · generada el ' + new Date().toLocaleDateString('es-CO',{day:'numeric',month:'long',year:'numeric'});
   document.getElementById('ccPdfNombre').textContent = CC.nombre || '—';
   document.getElementById('ccPdfCedula').textContent = CC.cedula || '—';
+  document.getElementById('ccPdfFirmaNombre').textContent = CC.nombre || PERFIL?.nombre || '—';
   document.getElementById('ccPdfCuenta').textContent = (CC.banco||'—') + ' · ' + (CC.cuenta||'—');
   document.getElementById('ccPdfEquipo').textContent = fmtMoney(valorEquipo);
   document.getElementById('ccPdfPropios').textContent = fmtMoney(valorPropios);
-  document.getElementById('ccPdfValor').textContent = fmtMoney(valorEquipo + valorPropios);
+  const totalAcelerador = ACELERADORES_MES.reduce((s,a)=>s+(+a.monto||0),0);
+  const filaAcelerador = document.getElementById('ccPdfFilaAcelerador');
+  if(totalAcelerador > 0){
+    filaAcelerador.style.display = 'flex';
+    const motivos = ACELERADORES_MES.map(a=>a.motivo).filter(Boolean).join(' · ');
+    document.getElementById('ccPdfAceleradorLbl').textContent = 'Acelerador' + (motivos ? ' — ' + motivos : '');
+    document.getElementById('ccPdfAcelerador').textContent = fmtMoney(totalAcelerador);
+  } else {
+    filaAcelerador.style.display = 'none';
+  }
+  document.getElementById('ccPdfValor').textContent = fmtMoney(valorEquipo + valorPropios + totalAcelerador);
   document.getElementById('ccPdfDetalle').innerHTML = filas.map(r=>`
     <tr>
       <td style="padding:5px 6px;border-bottom:1px solid #E2D9CF">${r.cliente||'—'}</td>

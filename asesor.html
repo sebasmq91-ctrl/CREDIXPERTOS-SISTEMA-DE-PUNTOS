@@ -53,7 +53,7 @@ label{display:block;font-size:10.5px;font-weight:700;color:var(--muted);text-tra
 
   <div class="hero">
     <div>
-      <div class="tag">Asesor comercial · v7</div>
+      <div class="tag">Asesor comercial · v9</div>
       <h1 id="nombreAsesor">Mis puntos</h1>
     </div>
     <button class="btn btn-salir" onclick="cerrarSesion()">Salir</button>
@@ -114,6 +114,10 @@ label{display:block;font-size:10.5px;font-weight:700;color:var(--muted);text-tra
       <div class="item comision"><div style="font-size:11px;color:var(--muted)">Comisión variable</div><div style="font-weight:700;font-size:18px" id="bonoComision">$0</div></div>
       <div class="item garantizado"><div style="font-size:11px;color:#92400E">Garantizado adicional</div><div style="font-weight:700;font-size:18px" id="bonoGarantizado">$0</div></div>
     </div>
+    <div class="item" id="itemAcelerador" style="display:none;background:#DCFCE7;margin-top:12px">
+      <div style="font-size:11px;color:#166534" id="aceleradorLbl">Acelerador</div>
+      <div style="font-weight:700;font-size:18px;color:#166534" id="bonoAcelerador">$0</div>
+    </div>
   </div>
 
   <!-- CUENTA DE COBRO -->
@@ -151,7 +155,20 @@ label{display:block;font-size:10.5px;font-weight:700;color:var(--muted);text-tra
     </table>
     <div style="background:#F8F6F1;border-radius:10px;padding:14px 18px">
       <div style="display:flex;justify-content:space-between;font-size:13px;color:#6B7280"><span>Puntos del mes</span><b id="ccPdfPuntos">0</b></div>
+      <div style="display:flex;justify-content:space-between;font-size:13px;color:#6B7280;margin-top:4px"><span>Comisión variable</span><b id="ccPdfComision">$0</b></div>
+      <div id="ccPdfFilaGarantizado" style="display:none;justify-content:space-between;font-size:13px;color:#92400E;margin-top:4px"><span id="ccPdfGarantizadoLbl">Garantizado adicional</span><b id="ccPdfGarantizado">$0</b></div>
+      <div id="ccPdfFilaAcelerador" style="display:none;justify-content:space-between;font-size:13px;color:#166534;margin-top:4px"><span id="ccPdfAceleradorLbl">Acelerador</span><b id="ccPdfAcelerador">$0</b></div>
       <div style="display:flex;justify-content:space-between;font-size:15px;border-top:1px solid #E2D9CF;padding-top:8px;margin-top:6px"><span style="color:#0A2540;font-weight:700">Valor a pagar</span><b style="color:#0A2540;font-size:20px" id="ccPdfValor">$0</b></div>
+    </div>
+    <div style="display:flex;gap:40px;margin-top:50px">
+      <div style="flex:1;text-align:center">
+        <div style="border-top:1px solid #1C1C2E;padding-top:6px;font-size:12px;color:#0A2540;font-weight:700" id="ccPdfFirmaAsesorNombre">—</div>
+        <div style="font-size:11px;color:#6B7280">Firma del asesor</div>
+      </div>
+      <div style="flex:1;text-align:center">
+        <div style="border-top:1px solid #1C1C2E;padding-top:6px;font-size:12px;color:#0A2540;font-weight:700">Sebastián Molina Quintero</div>
+        <div style="font-size:11px;color:#6B7280">Firma del gerente comercial</div>
+      </div>
     </div>
   </div>
 </div>
@@ -163,6 +180,7 @@ let ENTIDADES = [];
 let CFG = null;
 let PUNTOS_MAPA = {}; // PUNTOS_MAPA[entidad_id][origen] = puntos/millón vigentes hoy (solo para estimar antes del desembolso)
 let CC = { nombre:'', cedula:'', banco:'', cuenta:'' };
+let ACELERADORES_MES = []; // [{monto, motivo}] del mes elegido — bonos puntuales que el admin otorga a mano
 let MES_SELECCIONADO = ''; // 'YYYY-MM' — ninguna fila de creditos se borra nunca al cambiar de mes,
                             // así que todo el historial sigue consultable eligiendo el mes aquí.
 
@@ -265,6 +283,11 @@ async function renderMes(){
     .eq('titular_id', PERFIL.id).eq('estado', 'desembolsado')
     .gte('fecha_desembolso', inicio).lt('fecha_desembolso', fin).order('fecha_desembolso');
   renderDesembolsados(desembolsados || []);
+
+  const { data: aceleradores } = await supabase.from('aceleradores').select('monto, motivo')
+    .eq('perfil_id', PERFIL.id).eq('mes', MES_SELECCIONADO);
+  ACELERADORES_MES = aceleradores || [];
+
   const cfgMes = await configVigente(ultimoDiaDelMes(MES_SELECCIONADO));
   renderProgreso(desembolsados || [], cfgMes);
 }
@@ -314,9 +337,19 @@ function renderProgreso(desembolsados, cfgMes){
   const CFG = cfgMes;
   if(!CFG){ return; }
   const { comisionVariable, garantizado, bono, nivelAlcanzado } = calcBonoAsesor(total, CFG);
-  document.getElementById('bonoValor').textContent = fmtMoney(bono);
+  const totalAcelerador = ACELERADORES_MES.reduce((s,a)=>s+(+a.monto||0),0);
+  document.getElementById('bonoValor').textContent = fmtMoney(bono + totalAcelerador);
   document.getElementById('bonoComision').textContent = fmtMoney(comisionVariable);
   document.getElementById('bonoGarantizado').textContent = fmtMoney(garantizado);
+  const itemAcelerador = document.getElementById('itemAcelerador');
+  if(totalAcelerador > 0){
+    itemAcelerador.style.display = '';
+    const motivos = ACELERADORES_MES.map(a=>a.motivo).filter(Boolean).join(' · ');
+    document.getElementById('aceleradorLbl').textContent = 'Acelerador' + (motivos ? ' — ' + motivos : '');
+    document.getElementById('bonoAcelerador').textContent = fmtMoney(totalAcelerador);
+  } else {
+    itemAcelerador.style.display = 'none';
+  }
   const faltaN1 = CFG.nivel1_pts-total, faltaN2 = CFG.nivel2_pts-total, faltaN3 = CFG.nivel3_pts-total;
   let txt = '';
   if(nivelAlcanzado===3) txt = '🏆 Nivel 3 alcanzado — tu garantizado ya está en el techo.';
@@ -407,13 +440,35 @@ async function imprimirCC(){
   const filas = desembolsados || [];
   const total = filas.reduce((s,r)=>s+(+r.puntos_calculados||0),0);
   const cfgMes = await configVigente(ultimoDiaDelMes(MES_SELECCIONADO));
-  const { bono } = calcBonoAsesor(total, cfgMes);
+  const { comisionVariable, garantizado, bono, nivelAlcanzado } = calcBonoAsesor(total, cfgMes);
+  const { data: aceleradoresMes } = await supabase.from('aceleradores').select('monto, motivo')
+    .eq('perfil_id', PERFIL.id).eq('mes', MES_SELECCIONADO);
+  const totalAcelerador = (aceleradoresMes||[]).reduce((s,a)=>s+(+a.monto||0),0);
   document.getElementById('ccFecha').textContent = 'Correspondiente a ' + etiquetaDeMes(MES_SELECCIONADO) + ' · generada el ' + new Date().toLocaleDateString('es-CO',{day:'numeric',month:'long',year:'numeric'});
   document.getElementById('ccPdfNombre').textContent = CC.nombre || '—';
   document.getElementById('ccPdfCedula').textContent = CC.cedula || '—';
   document.getElementById('ccPdfCuenta').textContent = (CC.banco||'—') + ' · ' + (CC.cuenta||'—');
+  document.getElementById('ccPdfFirmaAsesorNombre').textContent = CC.nombre || PERFIL?.nombre || '—';
   document.getElementById('ccPdfPuntos').textContent = fmtNum(total);
-  document.getElementById('ccPdfValor').textContent = fmtMoney(bono);
+  document.getElementById('ccPdfComision').textContent = fmtMoney(comisionVariable);
+  const filaGarantizado = document.getElementById('ccPdfFilaGarantizado');
+  if(garantizado > 0){
+    filaGarantizado.style.display = 'flex';
+    document.getElementById('ccPdfGarantizadoLbl').textContent = `Garantizado adicional (Nivel ${nivelAlcanzado})`;
+    document.getElementById('ccPdfGarantizado').textContent = fmtMoney(garantizado);
+  } else {
+    filaGarantizado.style.display = 'none';
+  }
+  const filaAcelerador = document.getElementById('ccPdfFilaAcelerador');
+  if(totalAcelerador > 0){
+    filaAcelerador.style.display = 'flex';
+    const motivos = (aceleradoresMes||[]).map(a=>a.motivo).filter(Boolean).join(' · ');
+    document.getElementById('ccPdfAceleradorLbl').textContent = 'Acelerador' + (motivos ? ' — ' + motivos : '');
+    document.getElementById('ccPdfAcelerador').textContent = fmtMoney(totalAcelerador);
+  } else {
+    filaAcelerador.style.display = 'none';
+  }
+  document.getElementById('ccPdfValor').textContent = fmtMoney(bono + totalAcelerador);
   document.getElementById('ccPdfDetalle').innerHTML = filas.map(r=>`
     <tr>
       <td style="padding:5px 6px;border-bottom:1px solid #E2D9CF">${r.cliente||'—'}</td>

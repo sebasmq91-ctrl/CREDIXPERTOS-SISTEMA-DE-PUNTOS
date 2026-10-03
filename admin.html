@@ -55,7 +55,7 @@ label{display:block;font-size:10.5px;font-weight:700;color:var(--muted);text-tra
 
   <div class="hero">
     <div>
-      <div class="tag">Panel de administrador · v22</div>
+      <div class="tag">Panel de administrador · v23</div>
       <h1 id="nombreAdmin">Credixpertos — puntos</h1>
     </div>
     <div style="display:flex;gap:8px">
@@ -70,6 +70,7 @@ label{display:block;font-size:10.5px;font-weight:700;color:var(--muted);text-tra
     <div class="tab" data-panel="pEntidades" onclick="cambiarTab('pEntidades')">Entidades</div>
     <div class="tab" data-panel="pUsuarios" onclick="cambiarTab('pUsuarios')">Usuarios</div>
     <div class="tab" data-panel="pConsolidado" onclick="cambiarTab('pConsolidado'); cargarConsolidado();">Consolidado</div>
+    <div class="tab" data-panel="pAceleradores" onclick="cambiarTab('pAceleradores'); cargarAceleradores();">Aceleradores</div>
     <div class="tab" data-panel="pCierres" onclick="cambiarTab('pCierres'); cargarCierres();">Cierres mensuales</div>
   </div>
 
@@ -242,6 +243,31 @@ label{display:block;font-size:10.5px;font-weight:700;color:var(--muted);text-tra
           <th>Comisión titular</th><th>Comisión empresa</th><th>Total</th><th></th>
         </tr></thead>
         <tbody id="consolidadoBody"><tr><td colspan="12" style="text-align:center;color:var(--muted)">Cargando…</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ACELERADORES -->
+  <div class="panel" id="pAceleradores">
+    <div class="card">
+      <h2>Registrar acelerador</h2>
+      <p class="sub">Para bonos puntuales que tú decides a mano (ej. "el que radique 10 documentos hoy se gana $50.000") — no es una fórmula automática, lo otorgas tú. Sale de la caja de Credixpertos: suma al total a cobrar de esa persona ese mes (aparte de su comisión) y se descuenta como costo en el margen del mes.</p>
+      <div class="grid4">
+        <div style="grid-column:span 2"><label>Asesor o analista</label><select id="accPerfil"></select></div>
+        <div><label>Valor ($)</label><input type="text" inputmode="decimal" id="accMonto" onblur="reformatearInputDinero(this)"></div>
+        <div><label>Mes al que suma</label><input type="month" id="accMes"></div>
+      </div>
+      <div class="grid2" style="margin-top:14px">
+        <div><label>Motivo</label><input type="text" id="accMotivo" placeholder="Ej: 10 créditos radicados el martes"></div>
+        <div><label>Fecha en que se ganó</label><input type="date" id="accFecha"></div>
+      </div>
+      <div class="row-actions"><button class="btn btn-primary" onclick="agregarAcelerador()">+ Registrar acelerador</button></div>
+    </div>
+    <div class="card">
+      <h2>Aceleradores registrados</h2>
+      <table>
+        <thead><tr><th>Persona</th><th>Mes</th><th>Valor</th><th>Motivo</th><th>Fecha</th><th></th></tr></thead>
+        <tbody id="aceleradoresBody"><tr><td colspan="6" style="text-align:center;color:var(--muted)">Cargando…</td></tr></tbody>
       </table>
     </div>
   </div>
@@ -789,14 +815,24 @@ async function cargarSeguimiento(){
   });
   TOTAL_ANALISTA_EQUIPO_MES = equipoPorAnalista; // objeto por analista_id
 
-  document.getElementById('tarjetasPersona').innerHTML = Object.entries(porPersona).map(([id,d])=>`
+  // Aceleradores del mes en curso: bonos puntuales que el admin otorgó
+  // a mano — se muestran aparte de la comisión, nunca mezclados.
+  const { data: aceleradoresMes } = await supabase.from('aceleradores').select('perfil_id, monto, motivo').eq('mes', mesActualISO());
+  const aceleradorPorPersona = {};
+  (aceleradoresMes||[]).forEach(a=>{ aceleradorPorPersona[a.perfil_id] = (aceleradorPorPersona[a.perfil_id]||0) + (+a.monto||0); });
+
+  document.getElementById('tarjetasPersona').innerHTML = Object.entries(porPersona).map(([id,d])=>{
+    const acelerador = aceleradorPorPersona[id] || 0;
+    return `
     <div class="mini-card" style="cursor:pointer" onclick="abrirDetallePersona('${id}')">
       <b>${d.nombre} · ${d.rol==='oficina_aliada'?'oficina aliada':d.rol}</b>
-      <div style="font-size:20px;font-weight:700;color:var(--brand)">${fmtMoney(d.comisionTotal||0)}</div>
+      <div style="font-size:20px;font-weight:700;color:var(--brand)">${fmtMoney((d.comisionTotal||0)+acelerador)}</div>
       <div style="font-size:11px;color:var(--muted);margin-top:4px">${fmtMoney(d.montoRadicado+d.montoDesembolsado)} en ${d.numOperaciones} operación(es)</div>
+      ${acelerador>0 ? `<div style="font-size:11px;color:#92400E;margin-top:4px;font-weight:700">+ ${fmtMoney(acelerador)} acelerador</div>` : ''}
       <div style="font-size:11px;color:var(--cyan);margin-top:6px">Ver detalle →</div>
     </div>
-  `).join('') || `<p style="color:var(--muted);text-align:center;grid-column:1/-1">Sin actividad este mes todavía.</p>`;
+  `;
+  }).join('') || `<p style="color:var(--muted);text-align:center;grid-column:1/-1">Sin actividad este mes todavía.</p>`;
 }
 async function cambiarCreditoAdmin(el, campo){
   if(campo==='monto'){
@@ -1084,7 +1120,23 @@ async function calcularCierreMes(mesISO){
     costoAnalistaEquipoTotal += comisionTotal;
   }
 
-  const costoTotal = costoAsesores + costoAnalistaPropios + costoAnalistaEquipoTotal + costoOficinaAliada;
+  // Aceleradores otorgados para este mes: salen de la caja de
+  // Credixpertos igual que cualquier comisión, así que cuentan como
+  // costo del mes y bajan el margen — pero se guardan aparte en el
+  // detalle para que quede claro que no son comisión por créditos.
+  const { data: aceleradoresMes } = await supabase.from('aceleradores')
+    .select('*, perfiles:perfil_id(nombre, rol)').eq('mes', mesISO);
+  const etiquetaRolAcc = { asesor:'Asesor', analista:'Analista' };
+  const aceleradores = (aceleradoresMes||[]).map(a=>({
+    nombre: a.perfiles?.nombre || '—',
+    rol: etiquetaRolAcc[a.perfiles?.rol] || a.perfiles?.rol || '—',
+    monto: +a.monto || 0,
+    motivo: a.motivo || '—',
+    fecha: a.fecha,
+  }));
+  const costoAceleradores = aceleradores.reduce((s,a)=>s+a.monto, 0);
+
+  const costoTotal = costoAsesores + costoAnalistaPropios + costoAnalistaEquipoTotal + costoOficinaAliada + costoAceleradores;
   const margen = ingresoTotal - costoTotal;
 
   // Detalle CLIENTE POR CLIENTE (no agrupado por persona) — para cada
@@ -1118,7 +1170,7 @@ async function calcularCierreMes(mesISO){
     };
   }).sort((a,b)=> (a.fecha||'').localeCompare(b.fecha||''));
 
-  return { ingresoTotal, costoTotal, margen, porCredito };
+  return { ingresoTotal, costoTotal, margen, porCredito, aceleradores };
 }
 
 // Revisa si hay meses ya terminados sin cerrar y los cierra solo —
@@ -1143,7 +1195,7 @@ async function cerrarMesesPendientes(){
           ingreso_total: cierre.ingresoTotal,
           costo_total: cierre.costoTotal,
           margen: cierre.margen,
-          detalle: { porCredito: cierre.porCredito },
+          detalle: { porCredito: cierre.porCredito, aceleradores: cierre.aceleradores },
         });
       }catch(e){ console.error('No se pudo cerrar el mes '+mesIter, e); }
     }
@@ -1166,6 +1218,13 @@ async function cargarCierres(){
         <td>${fmtMoney(p.comisionEmpresa)}</td>
         <td>${fmtMoney(p.total)}</td>
       </tr>`).join('');
+    const aceleradoresFilas = (c.detalle?.aceleradores||[]).map(a=>`
+      <tr>
+        <td style="padding-left:24px" colspan="2">${a.nombre} <span style="color:var(--muted)">· ${a.rol}</span></td>
+        <td colspan="2">${a.motivo}</td>
+        <td style="font-weight:700;color:#92400E">${fmtMoney(a.monto)}</td>
+        <td colspan="2">${a.fecha||'—'}</td>
+      </tr>`).join('');
     return `
       <tr style="cursor:pointer" onclick="const f=this.nextElementSibling; f.style.display = f.style.display==='none' ? '' : 'none';">
         <td><b>${c.mes}</b></td>
@@ -1179,8 +1238,64 @@ async function cargarCierres(){
           <thead><tr><th style="padding-left:24px">Cliente</th><th>Titular</th><th>Entidad</th><th>Monto</th><th>Comisión titular</th><th>Comisión empresa</th><th>Total</th></tr></thead>
           <tbody>${detalleFilas || '<tr><td colspan="7" style="text-align:center;color:var(--muted)">Sin movimientos ese mes.</td></tr>'}</tbody>
         </table>
+        ${aceleradoresFilas ? `
+        <table style="margin:10px 0 0">
+          <thead><tr><th style="padding-left:24px" colspan="2">Acelerador</th><th colspan="2">Motivo</th><th>Valor</th><th colspan="2">Fecha</th></tr></thead>
+          <tbody>${aceleradoresFilas}</tbody>
+        </table>` : ''}
       </td></tr>`;
   }).join('') || `<tr><td colspan="5" style="text-align:center;color:var(--muted)">Todavía no hay meses cerrados — se cierran solos apenas termine el mes en curso.</td></tr>`;
+}
+
+/* ---------- Aceleradores ---------- */
+// Bonos puntuales que el admin decide a mano — no hay fórmula ni
+// detección automática de la meta (eso lo evalúa la gerencia). Solo se
+// registra a quién, cuánto y por qué, y a qué mes de comisión suma.
+let ACELERADORES_CARGADO = false;
+async function cargarAceleradores(){
+  if(!ACELERADORES_CARGADO){
+    const { data: perfiles } = await supabase.from('perfiles').select('id,nombre,rol')
+      .in('rol', ['asesor','analista']).eq('activo', true).order('nombre');
+    const etiquetaRol = { asesor:'Asesor', analista:'Analista' };
+    document.getElementById('accPerfil').innerHTML = (perfiles||[])
+      .map(p=>`<option value="${p.id}">${p.nombre} · ${etiquetaRol[p.rol]}</option>`).join('');
+    document.getElementById('accMes').value = mesActualISO();
+    document.getElementById('accFecha').value = hoyISO();
+    ACELERADORES_CARGADO = true;
+  }
+  const { data } = await supabase.from('aceleradores')
+    .select('*, perfiles:perfil_id(nombre, rol)')
+    .order('mes', { ascending:false }).order('fecha', { ascending:false });
+  const etiquetaRol = { asesor:'Asesor', analista:'Analista' };
+  document.getElementById('aceleradoresBody').innerHTML = (data||[]).map(a=>`
+    <tr>
+      <td>${a.perfiles?.nombre||'—'} <span style="color:var(--muted);font-size:11px">· ${etiquetaRol[a.perfiles?.rol]||a.perfiles?.rol||'—'}</span></td>
+      <td>${a.mes}</td>
+      <td style="font-weight:700">${fmtMoney(a.monto)}</td>
+      <td>${a.motivo||'—'}</td>
+      <td>${a.fecha||'—'}</td>
+      <td><button class="btn btn-ghost" onclick="borrarAcelerador('${a.id}')">Eliminar</button></td>
+    </tr>`).join('') || `<tr><td colspan="6" style="text-align:center;color:var(--muted)">Sin aceleradores registrados todavía.</td></tr>`;
+}
+async function agregarAcelerador(){
+  const perfilId = document.getElementById('accPerfil').value;
+  if(!perfilId){ alert('No hay asesores ni analistas activos para elegir.'); return; }
+  const monto = parseMonto(document.getElementById('accMonto').value);
+  const mes = document.getElementById('accMes').value || mesActualISO();
+  const motivo = document.getElementById('accMotivo').value;
+  const fecha = document.getElementById('accFecha').value || hoyISO();
+  const { error } = await supabase.from('aceleradores').insert({ perfil_id: perfilId, monto, mes, motivo, fecha });
+  if(error){ alert('No se pudo registrar: '+error.message); return; }
+  document.getElementById('accMonto').value = '';
+  document.getElementById('accMotivo').value = '';
+  await cargarAceleradores();
+  if(mes === mesActualISO()) await cargarSeguimiento();
+}
+async function borrarAcelerador(id){
+  if(!confirm('¿Eliminar este acelerador?')) return;
+  await supabase.from('aceleradores').delete().eq('id', id);
+  await cargarAceleradores();
+  await cargarSeguimiento();
 }
 
 iniciar();
