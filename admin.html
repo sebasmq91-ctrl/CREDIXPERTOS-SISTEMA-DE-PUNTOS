@@ -887,16 +887,22 @@ async function cargarSeguimiento(){
   document.getElementById('kpiOperacionesActivas').textContent = totalOperacionesKpi;
   document.getElementById('kpiAceleradoresMes').textContent = fmtMoney(totalAceleradoresKpi);
 
-  // Comisiones causadas (créditos ya desembolsados, valor real y
-  // congelado) vs. proyectadas (lo que sigue radicado, estimado con
-  // tarifas/config vigentes hoy) — misma lógica que usa "Consolidado".
+  // Comisión que le corresponde a Credixpertos (empresa), no al
+  // titular: ingreso de la entidad menos lo que se le paga al
+  // asesor/analista/oficina aliada por ese crédito. Causada = créditos
+  // ya desembolsados este mes (valor real y congelado); proyectada =
+  // lo que sigue radicado, estimado con tarifas/config vigentes hoy —
+  // misma lógica de "empresa" que ya usa la pestaña "Consolidado".
   const tarifasOrigenMapa = await cargarPuntosEntidadOrigen();
   const valorPunto = CFG_SEGUIMIENTO ? CFG_SEGUIMIENTO.valor_punto : 0;
-  let comisionesCausadas = totalAceleradoresKpi, comisionesProyectadas = 0;
+  let comisionesCausadas = 0, comisionesProyectadas = 0;
   CREDITOS_MES.forEach(c=>{
-    const comision = comisionProyectadaCredito(c, tarifasOrigenMapa, CFG_SEGUIMIENTO, valorPunto);
-    if(c.estado === 'desembolsado') comisionesCausadas += comision;
-    else comisionesProyectadas += comision;
+    if(!c.entidades) return; // créditos sin entidad (p.ej. producción propia) no generan ingreso para la empresa
+    const comisionTitular = comisionProyectadaCredito(c, tarifasOrigenMapa, CFG_SEGUIMIENTO, valorPunto);
+    const ingresoCredito = millonesExactos(c.monto) * (+c.entidades.entidad_paga || 0);
+    const comisionEmpresa = ingresoCredito - comisionTitular;
+    if(c.estado === 'desembolsado') comisionesCausadas += comisionEmpresa;
+    else comisionesProyectadas += comisionEmpresa;
   });
   document.getElementById('kpiComisionesCausadas').textContent = fmtMoney(comisionesCausadas);
   document.getElementById('kpiComisionesProyectadas').textContent = fmtMoney(comisionesProyectadas);
