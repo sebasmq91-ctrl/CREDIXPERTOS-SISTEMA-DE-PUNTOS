@@ -5,48 +5,54 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Panel de administrador · Credixpertos</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&display=swap">
 <style>
-:root{ --brand:#0A2540; --brand2:#1a3d5c; --cyan:#00B4C8; --cyan-light:#E6F8FA; --gold-light:#FEF3C7; --text:#1C1C2E; --muted:#6B7280; --border:#E2D9CF; --red:#991B1B; --red-bg:#FEE2E2; --green:#166534; --green-bg:#DCFCE7; }
+:root{ --brand:#16293A; --brand2:#0E6472; --cyan:#1AD4E0; --cyan-light:#E6FBFC; --gold-light:#FBF3E2; --gold-text:#8A6D23; --text:#16293A; --muted:#6B7A89; --border:#E6EAEE; --red:#991B1B; --red-bg:#FEE2E2; --green:#1F9254; --green-bg:#E4F7EC; }
 *{box-sizing:border-box;}
-body{margin:0;font-family:'DM Sans',-apple-system,sans-serif;color:var(--text);background:#EEF1F6;}
-.wrap{max-width:1400px;margin:0 auto;padding:24px 28px 60px;}
-.hero{background:linear-gradient(135deg,var(--brand),var(--brand2));border-radius:16px;padding:22px 26px;margin-bottom:20px;color:white;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:14px;}
-.hero .tag{font-size:10.5px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--cyan);}
-.hero h1{font-family:Georgia,serif;font-size:22px;margin:2px 0 0;font-weight:400;}
-.btn{font-family:'DM Sans',sans-serif;font-weight:700;font-size:12px;border:none;border-radius:20px;padding:8px 15px;cursor:pointer;}
+body{margin:0;font-family:'Manrope',-apple-system,sans-serif;color:var(--text);background:#EEF2F5;}
+.wrap{max-width:1400px;margin:0 auto;padding:0 28px 60px;}
+.hero{position:relative;background:linear-gradient(120deg,var(--brand) 0%,var(--brand) 55%,var(--brand2) 100%);border-radius:0 0 20px 20px;padding:32px 40px 36px;margin:0 -28px 28px;color:white;overflow:hidden;}
+.hero::before{content:'';position:absolute;top:-60px;right:-40px;width:260px;height:260px;border-radius:50%;background:rgba(26,212,224,0.14);pointer-events:none;}
+.hero-top{position:relative;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px;}
+.hero-brand{display:flex;align-items:center;gap:16px;}
+.hero-logo{background:#FFFFFF;border-radius:12px;padding:8px 16px;display:flex;align-items:center;box-shadow:0 6px 16px rgba(0,0,0,0.18);}
+.hero-logo img{height:38px;width:auto;display:block;}
+.hero .tag{font-size:12px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#7FEAF2;}
+.hero h1{font-family:'Manrope',sans-serif;font-size:22px;margin:2px 0 0;font-weight:800;color:#fff;}
+.btn{font-family:'Manrope',sans-serif;font-weight:700;font-size:13px;border:none;border-radius:999px;padding:10px 20px;cursor:pointer;}
 .btn-primary{background:var(--brand);color:white;}
 .btn-ghost{background:var(--cyan-light);color:#0a5c6e;}
-.btn-gold{background:var(--gold-light);color:#92400E;}
-.btn-salir{background:rgba(255,255,255,0.15);color:white;}
-.card{background:white;border:1px solid var(--border);border-radius:14px;padding:20px 22px;margin-bottom:18px;}
-.card h2{font-family:Georgia,serif;font-size:16px;color:var(--brand);margin:0 0 4px;font-weight:400;}
-.sub{font-size:12px;color:var(--muted);margin:0 0 14px;}
+.btn-gold{background:var(--gold-light);color:var(--gold-text);}
+.btn-salir{background:rgba(255,255,255,0.1);color:white;border:1px solid rgba(255,255,255,0.18);}
+.card{background:white;border:none;border-radius:20px;padding:28px 32px;margin-bottom:18px;box-shadow:0 2px 14px rgba(22,41,58,0.06);}
+.card h2{font-family:'Manrope',sans-serif;font-size:18px;color:var(--text);margin:0 0 4px;font-weight:800;}
+.sub{font-size:13px;color:var(--muted);margin:0 0 14px;}
 table{width:100%;border-collapse:collapse;font-size:12.5px;}
-th{background:var(--brand);color:white;padding:8px;text-align:left;font-weight:500;font-size:10.5px;text-transform:uppercase;}
+th{background:var(--brand);color:white;padding:10px;text-align:left;font-weight:700;font-size:10.5px;text-transform:uppercase;}
 td{padding:10px 10px;border-bottom:1px solid var(--border);}
-input,select{font-family:'DM Sans',sans-serif;font-size:13.5px;padding:9px 10px;border:1px solid var(--border);border-radius:7px;width:100%;}
-.metricas-fila{display:flex;gap:26px;flex-wrap:wrap;padding:10px 14px;background:#F7F5F1;font-size:12.5px;color:var(--muted);}
+input,select{font-family:'Manrope',sans-serif;font-size:13.5px;padding:9px 10px;border:1px solid var(--border);border-radius:10px;width:100%;}
+.metricas-fila{display:flex;gap:26px;flex-wrap:wrap;padding:10px 14px;background:#F7FBFC;border-radius:10px;font-size:12.5px;color:var(--muted);}
 .metricas-fila b{color:var(--text);font-size:13.5px;}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
 .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;}
 .grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;}
 label{display:block;font-size:10.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;}
 .row-actions{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;}
-.pill{display:inline-block;font-size:10px;font-weight:700;padding:3px 9px;border-radius:12px;text-transform:uppercase;}
-.pill-rad{background:var(--gold-light);color:#92400E;}
+.pill{display:inline-block;font-size:10px;font-weight:700;padding:4px 10px;border-radius:999px;text-transform:uppercase;}
+.pill-rad{background:var(--gold-light);color:var(--gold-text);}
 .pill-des{background:var(--green-bg);color:var(--green);}
-.msg{padding:10px 12px;border-radius:8px;font-size:12.5px;margin-top:10px;display:none;}
+.msg{padding:10px 12px;border-radius:10px;font-size:12.5px;margin-top:10px;display:none;}
 .msg.ok{background:var(--green-bg);color:var(--green);}
 .msg.err{background:var(--red-bg);color:var(--red);}
-.tabs{display:flex;gap:6px;margin-bottom:18px;flex-wrap:wrap;}
-.tab{background:white;border:1px solid var(--border);border-radius:20px;padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer;}
-.tab.activo{background:var(--brand);color:white;border-color:var(--brand);}
+.tabs{position:relative;display:flex;gap:8px;margin:24px 0 0;flex-wrap:wrap;}
+.tab{background:rgba(255,255,255,0.08);color:#D7E3EC;border:1px solid rgba(255,255,255,0.14);border-radius:999px;padding:12px 20px;font-size:14px;font-weight:600;cursor:pointer;}
+.tab.activo{background:#FFFFFF;color:var(--brand);border-color:#FFFFFF;font-weight:800;}
 .panel{display:none;} .panel.activo{display:block;}
-.note{background:var(--gold-light);border:1px solid #FCD34D;border-radius:10px;padding:11px 14px;font-size:12px;color:#92400E;margin-top:14px;line-height:1.5;}
-.warn{background:var(--red-bg);border:1px solid #FCA5A5;border-radius:10px;padding:11px 14px;font-size:12px;color:var(--red);margin-top:14px;line-height:1.5;}
-.mini-card{border:1px solid var(--border);border-radius:12px;padding:14px;}
+.note{background:var(--gold-light);border:1px solid #F3E6C4;border-radius:12px;padding:11px 14px;font-size:12px;color:var(--gold-text);margin-top:14px;line-height:1.5;}
+.warn{background:var(--red-bg);border:1px solid #FCA5A5;border-radius:12px;padding:11px 14px;font-size:12px;color:var(--red);margin-top:14px;line-height:1.5;}
+.mini-card{border:1px solid var(--border);border-radius:14px;padding:14px;}
 .mini-card b{display:block;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:10px;}
-.rent-toggle{background:var(--gold-light);color:#92400E;border:none;border-radius:20px;padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer;}
+.rent-toggle{background:var(--gold-light);color:var(--gold-text);border:none;border-radius:999px;padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer;}
 .pos{color:var(--green);font-weight:700;} .neg{color:var(--red);font-weight:700;}
 </style>
 </head>
@@ -54,24 +60,32 @@ label{display:block;font-size:10.5px;font-weight:700;color:var(--muted);text-tra
 <div class="wrap" id="app" style="display:none">
 
   <div class="hero">
-    <div>
-      <div class="tag">Panel de administrador · v23</div>
-      <h1 id="nombreAdmin">Credixpertos — puntos</h1>
+    <div class="hero-top">
+      <div class="hero-brand">
+        <div class="hero-logo"><img src="logo-credixpertos.png" alt="Credixpertos"></div>
+        <div>
+          <div class="tag">Panel de administrador · v24</div>
+          <h1 id="nombreAdmin">Credixpertos — puntos</h1>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px">
+        <a href="pyg.html" class="btn btn-salir" style="text-decoration:none;display:inline-flex;align-items:center;gap:8px">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+          PyG proyectado
+        </a>
+        <button class="btn btn-salir" onclick="cerrarSesion()">Salir</button>
+      </div>
     </div>
-    <div style="display:flex;gap:8px">
-      <a href="pyg.html" class="btn btn-salir" style="text-decoration:none">📊 PyG proyectado</a>
-      <button class="btn btn-salir" onclick="cerrarSesion()">Salir</button>
-    </div>
-  </div>
 
-  <div class="tabs">
-    <div class="tab activo" data-panel="pSeguimiento" onclick="cambiarTab('pSeguimiento')">Seguimiento en vivo</div>
-    <div class="tab" data-panel="pNiveles" onclick="cambiarTab('pNiveles')">Niveles y tarifas</div>
-    <div class="tab" data-panel="pEntidades" onclick="cambiarTab('pEntidades')">Entidades</div>
-    <div class="tab" data-panel="pUsuarios" onclick="cambiarTab('pUsuarios')">Usuarios</div>
-    <div class="tab" data-panel="pConsolidado" onclick="cambiarTab('pConsolidado'); cargarConsolidado();">Consolidado</div>
-    <div class="tab" data-panel="pAceleradores" onclick="cambiarTab('pAceleradores'); cargarAceleradores();">Aceleradores</div>
-    <div class="tab" data-panel="pCierres" onclick="cambiarTab('pCierres'); cargarCierres();">Cierres mensuales</div>
+    <div class="tabs">
+      <div class="tab activo" data-panel="pSeguimiento" onclick="cambiarTab('pSeguimiento')">Seguimiento en vivo</div>
+      <div class="tab" data-panel="pNiveles" onclick="cambiarTab('pNiveles')">Niveles y tarifas</div>
+      <div class="tab" data-panel="pEntidades" onclick="cambiarTab('pEntidades')">Entidades</div>
+      <div class="tab" data-panel="pUsuarios" onclick="cambiarTab('pUsuarios')">Usuarios</div>
+      <div class="tab" data-panel="pConsolidado" onclick="cambiarTab('pConsolidado'); cargarConsolidado();">Consolidado</div>
+      <div class="tab" data-panel="pAceleradores" onclick="cambiarTab('pAceleradores'); cargarAceleradores();">Aceleradores</div>
+      <div class="tab" data-panel="pCierres" onclick="cambiarTab('pCierres'); cargarCierres();">Cierres mensuales</div>
+    </div>
   </div>
 
   <!-- SEGUIMIENTO EN VIVO -->
@@ -156,7 +170,7 @@ label{display:block;font-size:10.5px;font-weight:700;color:var(--muted);text-tra
   <div class="panel" id="pEntidades">
     <div class="card">
       <h2>Configuración — Entidades, puntos por origen y rentabilidad</h2>
-      <p class="sub">Cada entidad tiene su propio puntaje según de dónde venga el cliente — no es un promedio. Los puntos se guardan con el botón 💾 (crea una versión nueva desde hoy, sin tocar lo ya calculado).</p>
+      <p class="sub">Cada entidad tiene su propio puntaje según de dónde venga el cliente — no es un promedio. Los puntos se guardan con el botón "Guardar" (crea una versión nueva desde hoy, sin tocar lo ya calculado).</p>
       <table>
         <thead><tr>
           <th style="width:18%">Entidad</th>
@@ -294,24 +308,24 @@ label{display:block;font-size:10.5px;font-weight:700;color:var(--muted);text-tra
         <div class="tag" style="color:var(--cyan);font-size:10.5px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase" id="modalRol">—</div>
         <h2 style="margin:2px 0 0" id="modalNombre">—</h2>
       </div>
-      <button class="btn btn-ghost" onclick="cerrarModal()">✕ Cerrar</button>
+      <button class="btn btn-ghost" onclick="cerrarModal()">Cerrar</button>
     </div>
     <div class="grid3" style="margin-bottom:18px">
       <div class="mini-card"><b>Puntos / Valor del mes</b><div style="font-size:20px;font-weight:700" id="modalTotal">—</div></div>
       <div class="mini-card"><b>Nivel alcanzado</b><div style="font-size:20px;font-weight:700" id="modalNivel">—</div></div>
       <div class="mini-card"><b>Bono total</b><div style="font-size:20px;font-weight:700" id="modalBono">—</div></div>
     </div>
-    <h3 style="font-family:Georgia,serif;font-weight:400;color:var(--brand);font-size:14px;margin-bottom:8px">Radicado por entidad (pendiente de desembolso)</h3>
+    <h3 style="font-family:'Manrope',sans-serif;font-weight:800;color:var(--text);font-size:14px;margin-bottom:8px">Radicado por entidad (pendiente de desembolso)</h3>
     <table style="margin-bottom:18px">
       <thead><tr><th>Entidad</th><th>Créditos</th><th>Monto total</th></tr></thead>
       <tbody id="modalRadicadoBody"></tbody>
     </table>
-    <h3 style="font-family:Georgia,serif;font-weight:400;color:var(--brand);font-size:14px;margin-bottom:8px">Desembolsado este mes por entidad</h3>
+    <h3 style="font-family:'Manrope',sans-serif;font-weight:800;color:var(--text);font-size:14px;margin-bottom:8px">Desembolsado este mes por entidad</h3>
     <table style="margin-bottom:18px">
       <thead><tr><th>Entidad</th><th>Créditos</th><th>Monto total</th><th>Comisión</th></tr></thead>
       <tbody id="modalDesembolsadoBody"></tbody>
     </table>
-    <h3 style="font-family:Georgia,serif;font-weight:400;color:var(--brand);font-size:14px;margin-bottom:8px">Cliente por cliente (este mes)</h3>
+    <h3 style="font-family:'Manrope',sans-serif;font-weight:800;color:var(--text);font-size:14px;margin-bottom:8px">Cliente por cliente (este mes)</h3>
     <table>
       <thead><tr><th>Cliente</th><th>Cédula</th><th>Entidad</th><th>Estado</th><th>Monto</th><th>Puntos</th><th>Comisión</th></tr></thead>
       <tbody id="modalClientesBody"></tbody>
@@ -521,8 +535,8 @@ function filaEntidadHTML(e, pts, tarifaAnalista){
       <td><input type="text" inputmode="decimal" value="${fmtMoney(e.entidad_paga||0)}" onchange="cambiarEntidad(this,'entidad_paga')"></td>
       <td style="text-align:center"><input type="checkbox" style="width:auto" ${e.activo?'checked':''} onchange="cambiarEntidad(this,'activo',true)"></td>
       <td style="white-space:nowrap">
-        <button class="btn btn-ghost" title="Guardar puntos y tarifa analista" onclick="guardarPuntosEntidad('${e.id}')">💾</button>
-        <button class="btn btn-ghost" onclick="borrarEntidad('${e.id}')">✕</button>
+        <button class="btn btn-ghost" title="Guardar puntos y tarifa analista" onclick="guardarPuntosEntidad('${e.id}')">Guardar</button>
+        <button class="btn btn-ghost" onclick="borrarEntidad('${e.id}')">Eliminar</button>
       </td>
     </tr>
     <tr id="fila-metricas-${e.id}"><td colspan="9" style="padding:0;border:none">
@@ -597,7 +611,7 @@ async function actualizarCalculosEntidades(){
   const warnBox = document.getElementById('warnMargen');
   if(algunaNegativa){
     warnBox.style.display = 'block';
-    warnBox.textContent = `⚠ Este mes, ${algunaNegativa} te está dejando perdiendo dinero (lo que paga la entidad es menor que lo que se le paga al asesor + la analista + la oficina aliada por esos créditos). Revisa lo que te paga esa entidad o las tarifas configuradas.`;
+    warnBox.textContent = `Atención: este mes, ${algunaNegativa} te está dejando perdiendo dinero (lo que paga la entidad es menor que lo que se le paga al asesor + la analista + la oficina aliada por esos créditos). Revisa lo que te paga esa entidad o las tarifas configuradas.`;
   } else {
     warnBox.style.display = 'none';
   }
@@ -624,7 +638,7 @@ async function guardarPuntosEntidad(id){
   const boton = document.querySelector(`tr[data-id="${id}"] button[title^="Guardar"]`);
   if(boton){
     const original = boton.textContent;
-    boton.textContent = '✓';
+    boton.textContent = 'Guardado';
     setTimeout(()=>{ boton.textContent = original; }, 1200);
   }
 }
@@ -828,7 +842,7 @@ async function cargarSeguimiento(){
       <b>${d.nombre} · ${d.rol==='oficina_aliada'?'oficina aliada':d.rol}</b>
       <div style="font-size:20px;font-weight:700;color:var(--brand)">${fmtMoney((d.comisionTotal||0)+acelerador)}</div>
       <div style="font-size:11px;color:var(--muted);margin-top:4px">${fmtMoney(d.montoRadicado+d.montoDesembolsado)} en ${d.numOperaciones} operación(es)</div>
-      ${acelerador>0 ? `<div style="font-size:11px;color:#92400E;margin-top:4px;font-weight:700">+ ${fmtMoney(acelerador)} acelerador</div>` : ''}
+      ${acelerador>0 ? `<div style="font-size:11px;color:#8A6D23;margin-top:4px;font-weight:700">+ ${fmtMoney(acelerador)} acelerador</div>` : ''}
       <div style="font-size:11px;color:var(--cyan);margin-top:6px">Ver detalle →</div>
     </div>
   `;
@@ -1053,7 +1067,7 @@ async function renderConsolidado(){
       <td style="font-weight:700">${fmtMoney(comisionTitular)}${c.estado==='radicado' ? ' <span style="color:var(--muted);font-weight:400">(proy.)</span>' : ''}</td>
       <td style="font-weight:700">${fmtMoney(comisionEmpresa)}${c.estado==='radicado' ? ' <span style="color:var(--muted);font-weight:400">(proy.)</span>' : ''}</td>
       <td>${fmtMoney(total)}</td>
-      <td style="white-space:nowrap"><button class="btn btn-gold" onclick="marcarDesembolsadoAdmin('${c.id}')" style="${c.estado==='desembolsado'?'display:none':''}">✓ Desembolsó</button> <button class="btn btn-ghost" onclick="borrarCreditoAdmin('${c.id}')">Eliminar</button></td>
+      <td style="white-space:nowrap"><button class="btn btn-gold" onclick="marcarDesembolsadoAdmin('${c.id}')" style="${c.estado==='desembolsado'?'display:none':''}">Desembolsó</button> <button class="btn btn-ghost" onclick="borrarCreditoAdmin('${c.id}')">Eliminar</button></td>
     </tr>`).join('') || `<tr><td colspan="12" style="text-align:center;color:var(--muted)">Sin créditos con estos filtros.</td></tr>`;
 }
 
@@ -1222,7 +1236,7 @@ async function cargarCierres(){
       <tr>
         <td style="padding-left:24px" colspan="2">${a.nombre} <span style="color:var(--muted)">· ${a.rol}</span></td>
         <td colspan="2">${a.motivo}</td>
-        <td style="font-weight:700;color:#92400E">${fmtMoney(a.monto)}</td>
+        <td style="font-weight:700;color:#8A6D23">${fmtMoney(a.monto)}</td>
         <td colspan="2">${a.fecha||'—'}</td>
       </tr>`).join('');
     return `

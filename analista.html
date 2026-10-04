@@ -5,39 +5,44 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Mi trabajo · Analista · Credixpertos</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&display=swap">
 <style>
-:root{ --brand:#0A2540; --brand2:#1a3d5c; --cyan:#00B4C8; --cyan-light:#E6F8FA; --gold-light:#FEF3C7; --text:#1C1C2E; --muted:#6B7280; --border:#E2D9CF; }
+:root{ --brand:#16293A; --brand2:#0E6472; --cyan:#1AD4E0; --cyan-light:#E6FBFC; --gold-light:#FBF3E2; --gold-text:#8A6D23; --text:#16293A; --muted:#6B7A89; --border:#E6EAEE; }
 *{box-sizing:border-box;}
-body{margin:0;font-family:'DM Sans',-apple-system,sans-serif;color:var(--text);background:#EEF1F6;}
-.wrap{max-width:1300px;margin:0 auto;padding:24px 28px 60px;}
-.hero{background:linear-gradient(135deg,var(--brand),var(--brand2));border-radius:16px;padding:22px 26px;margin-bottom:20px;color:white;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:14px;}
-.hero .tag{font-size:10.5px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--cyan);}
-.hero h1{font-family:Georgia,serif;font-size:22px;margin:2px 0 0;font-weight:400;}
-.btn{font-family:'DM Sans',sans-serif;font-weight:700;font-size:12px;border:none;border-radius:20px;padding:8px 15px;cursor:pointer;}
+body{margin:0;font-family:'Manrope',-apple-system,sans-serif;color:var(--text);background:#EEF2F5;}
+.wrap{max-width:1300px;margin:0 auto;padding:0 28px 60px;}
+.hero{position:relative;background:linear-gradient(120deg,var(--brand) 0%,var(--brand) 55%,var(--brand2) 100%);border-radius:0 0 20px 20px;padding:32px 40px 34px;margin:0 -28px 28px;color:white;overflow:hidden;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px;}
+.hero::before{content:'';position:absolute;top:-60px;right:-40px;width:220px;height:220px;border-radius:50%;background:rgba(26,212,224,0.14);pointer-events:none;}
+.hero-brand{position:relative;display:flex;align-items:center;gap:16px;}
+.hero-logo{background:#FFFFFF;border-radius:12px;padding:8px 16px;display:flex;align-items:center;box-shadow:0 6px 16px rgba(0,0,0,0.18);}
+.hero-logo img{height:34px;width:auto;display:block;}
+.hero .tag{font-size:12px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#7FEAF2;}
+.hero h1{font-family:'Manrope',sans-serif;font-size:22px;margin:2px 0 0;font-weight:800;color:#fff;}
+.btn{font-family:'Manrope',sans-serif;font-weight:700;font-size:13px;border:none;border-radius:999px;padding:10px 20px;cursor:pointer;}
 .btn-primary{background:var(--brand);color:white;}
 .btn-ghost{background:var(--cyan-light);color:#0a5c6e;}
-.btn-gold{background:var(--gold-light);color:#92400E;}
-.btn-salir{background:rgba(255,255,255,0.15);color:white;}
-.card{background:white;border:1px solid var(--border);border-radius:14px;padding:20px 22px;margin-bottom:18px;}
-.card h2{font-family:Georgia,serif;font-size:16px;color:var(--brand);margin:0 0 4px;font-weight:400;}
-.sub{font-size:12px;color:var(--muted);margin:0 0 14px;}
+.btn-gold{background:var(--gold-light);color:var(--gold-text);}
+.btn-salir{position:relative;background:rgba(255,255,255,0.1);color:white;border:1px solid rgba(255,255,255,0.18);}
+.card{background:white;border:none;border-radius:20px;padding:28px 32px;margin-bottom:18px;box-shadow:0 2px 14px rgba(22,41,58,0.06);}
+.card h2{font-family:'Manrope',sans-serif;font-size:18px;color:var(--text);margin:0 0 4px;font-weight:800;}
+.sub{font-size:13px;color:var(--muted);margin:0 0 14px;}
 table{width:100%;border-collapse:collapse;font-size:12.5px;}
-th{background:var(--brand);color:white;padding:8px;text-align:left;font-weight:500;font-size:10.5px;text-transform:uppercase;}
+th{background:var(--brand);color:white;padding:10px;text-align:left;font-weight:700;font-size:10.5px;text-transform:uppercase;}
 td{padding:10px 10px;border-bottom:1px solid var(--border);}
-input,select{font-family:'DM Sans',sans-serif;font-size:13.5px;padding:9px 10px;border:1px solid var(--border);border-radius:7px;width:100%;}
+input,select{font-family:'Manrope',sans-serif;font-size:13.5px;padding:9px 10px;border:1px solid var(--border);border-radius:10px;width:100%;}
 .del-x{background:none;border:none;color:#991B1B;cursor:pointer;font-size:15px;}
 .row-actions{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;}
-.puntos-hero{background:linear-gradient(135deg,var(--brand),var(--brand2));border-radius:14px;padding:24px 28px;color:white;}
-.puntos-hero .lbl{font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--cyan);margin-bottom:6px;}
-.puntos-hero .val{font-family:Georgia,serif;font-size:34px;font-weight:700;}
+.puntos-hero{background:linear-gradient(120deg,var(--brand) 0%,var(--brand) 55%,var(--brand2) 100%);border-radius:20px;padding:24px 28px;color:white;}
+.puntos-hero .lbl{font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#7FEAF2;margin-bottom:6px;}
+.puntos-hero .val{font-family:'Manrope',sans-serif;font-size:34px;font-weight:800;}
 .desglose{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:16px;padding-top:16px;border-top:1px solid rgba(255,255,255,0.15);}
-.desglose .item{background:rgba(255,255,255,0.08);border-radius:10px;padding:12px 14px;}
+.desglose .item{background:rgba(255,255,255,0.08);border-radius:12px;padding:12px 14px;}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;}
 label{display:block;font-size:10.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;}
-.pill{display:inline-block;font-size:10px;font-weight:700;padding:3px 9px;border-radius:12px;text-transform:uppercase;}
-.pill-rad{background:var(--gold-light);color:#92400E;}
-.pill-des{background:#DCFCE7;color:#166534;}
-.note{background:var(--cyan-light);border:1px solid #67E8F9;color:#0a5c6e;border-radius:10px;padding:11px 14px;font-size:12px;margin-top:14px;line-height:1.5;}
+.pill{display:inline-block;font-size:10px;font-weight:700;padding:4px 10px;border-radius:999px;text-transform:uppercase;}
+.pill-rad{background:var(--gold-light);color:var(--gold-text);}
+.pill-des{background:#E4F7EC;color:#1F9254;}
+.note{background:var(--cyan-light);border:1px solid #9FE9EF;color:#0a5c6e;border-radius:12px;padding:11px 14px;font-size:12px;margin-top:14px;line-height:1.5;}
 .print-doc{display:none;}
 @media print{ body>.wrap{display:none;} .print-doc.imprimir-activo{display:block;} }
 </style>
@@ -46,9 +51,12 @@ label{display:block;font-size:10.5px;font-weight:700;color:var(--muted);text-tra
 <div class="wrap" id="app" style="display:none">
 
   <div class="hero">
-    <div>
-      <div class="tag">Analista de crédito · v11</div>
-      <h1 id="nombreAnalista">Mi trabajo</h1>
+    <div class="hero-brand">
+      <div class="hero-logo"><img src="logo-credixpertos.png" alt="Credixpertos"></div>
+      <div>
+        <div class="tag">Analista de crédito · v12</div>
+        <h1 id="nombreAnalista">Mi trabajo</h1>
+      </div>
     </div>
     <button class="btn btn-salir" onclick="cerrarSesion()">Salir</button>
   </div>
@@ -118,7 +126,7 @@ label{display:block;font-size:10.5px;font-weight:700;color:var(--muted);text-tra
     </div>
     <div class="row-actions">
       <button class="btn btn-ghost" onclick="guardarCC()">Guardar mis datos</button>
-      <button class="btn btn-primary" onclick="imprimirCC()">📄 Descargar cuenta de cobro</button>
+      <button class="btn btn-primary" onclick="imprimirCC()">Descargar cuenta de cobro</button>
     </div>
     <div class="note">La cuenta de cobro muestra el valor total a pagar — nunca la tarifa por punto ni el porcentaje exacto.</div>
   </div>
@@ -137,34 +145,34 @@ label{display:block;font-size:10.5px;font-weight:700;color:var(--muted);text-tra
 
 <div class="print-doc" id="printCC">
   <div style="max-width:680px;margin:0 auto;padding:30px;font-family:'DM Sans',sans-serif">
-    <div style="background:linear-gradient(135deg,#0A2540,#1a3d5c);color:white;padding:22px 28px;border-radius:12px;margin-bottom:20px">
-      <div style="font-size:11px;font-weight:700;letter-spacing:2px;color:#00B4C8">CREDIXPERTOS</div>
-      <div style="font-family:Georgia,serif;font-size:22px">Cuenta de cobro</div>
+    <div style="background:linear-gradient(135deg,#16293A,#0E6472);color:white;padding:22px 28px;border-radius:12px;margin-bottom:20px">
+      <div style="font-size:11px;font-weight:700;letter-spacing:2px;color:#1AD4E0">CREDIXPERTOS</div>
+      <div style="font-family:'Manrope',sans-serif;font-size:22px;font-weight:800">Cuenta de cobro</div>
       <div style="font-size:12px;color:rgba(255,255,255,0.65)" id="ccFecha"></div>
     </div>
     <table style="width:100%;border-collapse:collapse;margin-bottom:20px">
-      <tr><td style="padding:6px 0;color:#6B7280;font-size:13px;width:35%">Nombre</td><td style="padding:6px 0;font-weight:700;color:#0A2540" id="ccPdfNombre">—</td></tr>
-      <tr><td style="padding:6px 0;color:#6B7280;font-size:13px">Cédula</td><td style="padding:6px 0;font-weight:700;color:#0A2540" id="ccPdfCedula">—</td></tr>
-      <tr><td style="padding:6px 0;color:#6B7280;font-size:13px">Cuenta de pago</td><td style="padding:6px 0;font-weight:700;color:#0A2540" id="ccPdfCuenta">—</td></tr>
+      <tr><td style="padding:6px 0;color:#6B7A89;font-size:13px;width:35%">Nombre</td><td style="padding:6px 0;font-weight:700;color:#16293A" id="ccPdfNombre">—</td></tr>
+      <tr><td style="padding:6px 0;color:#6B7A89;font-size:13px">Cédula</td><td style="padding:6px 0;font-weight:700;color:#16293A" id="ccPdfCedula">—</td></tr>
+      <tr><td style="padding:6px 0;color:#6B7A89;font-size:13px">Cuenta de pago</td><td style="padding:6px 0;font-weight:700;color:#16293A" id="ccPdfCuenta">—</td></tr>
     </table>
     <table style="width:100%;border-collapse:collapse;margin-bottom:14px">
-      <thead><tr style="background:#0A2540;color:white;font-size:11px"><th style="padding:6px;text-align:left">Cliente</th><th style="padding:6px;text-align:left">Cédula</th><th style="padding:6px;text-align:left">Monto</th><th style="padding:6px;text-align:left">Valor generado</th></tr></thead>
+      <thead><tr style="background:#16293A;color:white;font-size:11px"><th style="padding:6px;text-align:left">Cliente</th><th style="padding:6px;text-align:left">Cédula</th><th style="padding:6px;text-align:left">Monto</th><th style="padding:6px;text-align:left">Valor generado</th></tr></thead>
       <tbody id="ccPdfDetalle"></tbody>
     </table>
     <div style="background:#F8F6F1;border-radius:10px;padding:14px 18px">
-      <div style="display:flex;justify-content:space-between;font-size:13px;color:#6B7280"><span>Por procesar al equipo</span><b id="ccPdfEquipo">$0</b></div>
-      <div style="display:flex;justify-content:space-between;font-size:13px;color:#6B7280"><span>Por tus propios clientes</span><b id="ccPdfPropios">$0</b></div>
-      <div id="ccPdfFilaAcelerador" style="display:none;justify-content:space-between;font-size:13px;color:#166534;margin-top:4px"><span id="ccPdfAceleradorLbl">Acelerador</span><b id="ccPdfAcelerador">$0</b></div>
-      <div style="display:flex;justify-content:space-between;font-size:15px;border-top:1px solid #E2D9CF;padding-top:8px;margin-top:6px"><span style="color:#0A2540;font-weight:700">Valor a pagar</span><b style="color:#0A2540;font-size:20px" id="ccPdfValor">$0</b></div>
+      <div style="display:flex;justify-content:space-between;font-size:13px;color:#6B7A89"><span>Por procesar al equipo</span><b id="ccPdfEquipo">$0</b></div>
+      <div style="display:flex;justify-content:space-between;font-size:13px;color:#6B7A89"><span>Por tus propios clientes</span><b id="ccPdfPropios">$0</b></div>
+      <div id="ccPdfFilaAcelerador" style="display:none;justify-content:space-between;font-size:13px;color:#1F9254;margin-top:4px"><span id="ccPdfAceleradorLbl">Acelerador</span><b id="ccPdfAcelerador">$0</b></div>
+      <div style="display:flex;justify-content:space-between;font-size:15px;border-top:1px solid #E6EAEE;padding-top:8px;margin-top:6px"><span style="color:#16293A;font-weight:700">Valor a pagar</span><b style="color:#16293A;font-size:20px" id="ccPdfValor">$0</b></div>
     </div>
     <div style="display:flex;gap:40px;margin-top:50px">
       <div style="flex:1;text-align:center">
-        <div style="border-top:1px solid #1C1C2E;padding-top:6px;font-size:12px;color:#0A2540;font-weight:700" id="ccPdfFirmaNombre">—</div>
-        <div style="font-size:11px;color:#6B7280">Firma de la analista</div>
+        <div style="border-top:1px solid #16293A;padding-top:6px;font-size:12px;color:#16293A;font-weight:700" id="ccPdfFirmaNombre">—</div>
+        <div style="font-size:11px;color:#6B7A89">Firma de la analista</div>
       </div>
       <div style="flex:1;text-align:center">
-        <div style="border-top:1px solid #1C1C2E;padding-top:6px;font-size:12px;color:#0A2540;font-weight:700">Sebastián Molina Quintero</div>
-        <div style="font-size:11px;color:#6B7280">Firma del gerente comercial</div>
+        <div style="border-top:1px solid #16293A;padding-top:6px;font-size:12px;color:#16293A;font-weight:700">Sebastián Molina Quintero</div>
+        <div style="font-size:11px;color:#6B7A89">Firma del gerente comercial</div>
       </div>
     </div>
   </div>
@@ -353,8 +361,8 @@ function renderRadicados(filas){
       <td>${selectEntidad(r.entidad_id)}</td>
       <td>${selectOrigen(r.origen)}</td>
       <td style="font-weight:700;color:var(--brand)" data-estimado-cell="${r.id}">${estimado===null?'—':fmtMoney(estimado)}</td>
-      <td><button class="btn btn-gold" onclick="marcarDesembolsado('${r.id}')">✓ Desembolsó</button></td>
-      <td><button class="del-x" onclick="borrarCredito('${r.id}')">✕</button></td>
+      <td><button class="btn btn-gold" onclick="marcarDesembolsado('${r.id}')">Desembolsó</button></td>
+      <td><button class="del-x" onclick="borrarCredito('${r.id}')">Eliminar</button></td>
     </tr>`;
   }).join('') || `<tr><td colspan="9" style="text-align:center;color:var(--muted)">Sin créditos radicados pendientes.</td></tr>`;
 }
@@ -368,7 +376,7 @@ function renderDesembolsados(filas){
       <td>${ENTIDADES.find(e=>e.id===r.entidad_id)?.nombre||'—'}</td>
       <td>${NOMBRES_ORIGEN[r.origen]||'—'}</td>
       <td style="font-weight:700;color:var(--brand)">${fmtMoney(r.puntos_calculados)}</td>
-      <td><button class="del-x" onclick="borrarCredito('${r.id}')">✕</button></td>
+      <td><button class="del-x" onclick="borrarCredito('${r.id}')">Eliminar</button></td>
     </tr>`).join('') || `<tr><td colspan="8" style="text-align:center;color:var(--muted)">Sin desembolsos en ${etiquetaDeMes(MES_SELECCIONADO)}.</td></tr>`;
 }
 async function cargarEquipo(){
@@ -463,11 +471,11 @@ async function imprimirCC(){
   document.getElementById('ccPdfValor').textContent = fmtMoney(valorEquipo + valorPropios + totalAcelerador);
   document.getElementById('ccPdfDetalle').innerHTML = filas.map(r=>`
     <tr>
-      <td style="padding:5px 6px;border-bottom:1px solid #E2D9CF">${r.cliente||'—'}</td>
-      <td style="padding:5px 6px;border-bottom:1px solid #E2D9CF">${r.cedula_cliente||'—'}</td>
-      <td style="padding:5px 6px;border-bottom:1px solid #E2D9CF">${fmtMoney(parseMonto(r.monto))}</td>
-      <td style="padding:5px 6px;border-bottom:1px solid #E2D9CF">${fmtMoney(r.puntos_calculados)}</td>
-    </tr>`).join('') || `<tr><td colspan="4" style="padding:8px;text-align:center;color:#6B7280">Sin clientes propios desembolsados este mes.</td></tr>`;
+      <td style="padding:5px 6px;border-bottom:1px solid #E6EAEE">${r.cliente||'—'}</td>
+      <td style="padding:5px 6px;border-bottom:1px solid #E6EAEE">${r.cedula_cliente||'—'}</td>
+      <td style="padding:5px 6px;border-bottom:1px solid #E6EAEE">${fmtMoney(parseMonto(r.monto))}</td>
+      <td style="padding:5px 6px;border-bottom:1px solid #E6EAEE">${fmtMoney(r.puntos_calculados)}</td>
+    </tr>`).join('') || `<tr><td colspan="4" style="padding:8px;text-align:center;color:#6B7A89">Sin clientes propios desembolsados este mes.</td></tr>`;
   document.getElementById('printCC').classList.add('imprimir-activo');
   setTimeout(()=>window.print(), 60);
   setTimeout(()=>document.getElementById('printCC').classList.remove('imprimir-activo'), 500);
