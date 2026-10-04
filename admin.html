@@ -54,6 +54,21 @@ label{display:block;font-size:10.5px;font-weight:700;color:var(--muted);text-tra
 .mini-card b{display:block;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:10px;}
 .rent-toggle{background:var(--gold-light);color:var(--gold-text);border:none;border-radius:999px;padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer;}
 .pos{color:var(--green);font-weight:700;} .neg{color:var(--red);font-weight:700;}
+.kpi-strip{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:18px;}
+.kpi-tile{background:white;border-radius:16px;padding:18px 22px;box-shadow:0 2px 10px rgba(22,41,58,0.06);}
+.kpi-tile.kpi-accent{background:linear-gradient(135deg,var(--cyan),var(--brand2));box-shadow:0 4px 14px rgba(14,100,114,0.3);}
+.kpi-tile .kpi-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);}
+.kpi-tile.kpi-accent .kpi-label{color:var(--cyan-light);}
+.kpi-tile .kpi-value{font-size:24px;font-weight:800;margin-top:6px;color:var(--text);}
+.kpi-tile.kpi-accent .kpi-value{color:#fff;}
+.persona-card{border:1px solid var(--border);border-radius:14px;padding:14px;cursor:pointer;}
+.persona-card.oficina-aliada{border-color:#F3E6C4;background:var(--gold-light);}
+.persona-top{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
+.persona-avatar{width:34px;height:34px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:12px;flex-shrink:0;}
+.persona-avatar.rol-analista{background:var(--cyan);color:var(--brand);}
+.persona-avatar.rol-asesor{background:var(--brand);color:#fff;}
+.persona-avatar.rol-oficina_aliada{background:#C9A34E;color:#fff;}
+.persona-nombre{font-size:12.5px;font-weight:700;color:var(--text);line-height:1.25;}
 </style>
 </head>
 <body>
@@ -90,6 +105,16 @@ label{display:block;font-size:10.5px;font-weight:700;color:var(--muted);text-tra
 
   <!-- SEGUIMIENTO EN VIVO -->
   <div class="panel activo" id="pSeguimiento">
+    <div class="kpi-strip">
+      <div class="kpi-tile kpi-accent"><div class="kpi-label">Total radicado</div><div class="kpi-value" id="kpiTotalRadicado">$0</div></div>
+      <div class="kpi-tile"><div class="kpi-label">Operaciones activas</div><div class="kpi-value" id="kpiOperacionesActivas">0</div></div>
+      <div class="kpi-tile">
+        <div class="kpi-label">Comisiones del mes</div>
+        <div class="kpi-value" id="kpiComisionesCausadas">$0</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:4px">Causadas · <span id="kpiComisionesProyectadas" style="font-weight:700;color:var(--text)">$0</span> proyectadas</div>
+      </div>
+      <div class="kpi-tile"><div class="kpi-label">Aceleradores del mes</div><div class="kpi-value" id="kpiAceleradoresMes">$0</div></div>
+    </div>
     <div class="card">
       <h2>Resumen del mes por persona</h2>
       <p class="sub">Haz clic en cualquier tarjeta para ver el detalle completo — radicado por entidad, desembolsado y progreso hacia el siguiente garantizado.</p>
@@ -774,7 +799,7 @@ let PERFILES_TODOS = []; // para poder abrir el modal aunque la persona no tenga
 async function cargarSeguimiento(){
   const inicioMes = mesActualISO() + '-01';
   const { data: creditos } = await supabase.from('creditos')
-    .select('*, perfiles:titular_id(nombre, rol, analista_id), entidades:entidad_id(nombre)')
+    .select('*, perfiles:titular_id(nombre, rol, analista_id), entidades:entidad_id(nombre, entidad_paga)')
     .or(`fecha_radicado.gte.${inicioMes},fecha_desembolso.gte.${inicioMes}`)
     .order('created_at', { ascending:false });
   CREDITOS_MES = creditos || [];
@@ -835,11 +860,17 @@ async function cargarSeguimiento(){
   const aceleradorPorPersona = {};
   (aceleradoresMes||[]).forEach(a=>{ aceleradorPorPersona[a.perfil_id] = (aceleradorPorPersona[a.perfil_id]||0) + (+a.monto||0); });
 
+  const iniciales = (nombre)=> (nombre||'').trim().split(/\s+/).slice(0,2).map(p=>p[0]||'').join('').toUpperCase();
+
   document.getElementById('tarjetasPersona').innerHTML = Object.entries(porPersona).map(([id,d])=>{
     const acelerador = aceleradorPorPersona[id] || 0;
+    const esOficinaAliada = d.rol==='oficina_aliada';
     return `
-    <div class="mini-card" style="cursor:pointer" onclick="abrirDetallePersona('${id}')">
-      <b>${d.nombre} · ${d.rol==='oficina_aliada'?'oficina aliada':d.rol}</b>
+    <div class="persona-card${esOficinaAliada?' oficina-aliada':''}" onclick="abrirDetallePersona('${id}')">
+      <div class="persona-top">
+        <div class="persona-avatar rol-${d.rol}">${iniciales(d.nombre)}</div>
+        <div class="persona-nombre">${d.nombre}<br><span style="font-weight:500;color:var(--muted);text-transform:uppercase;font-size:10px;letter-spacing:.4px">${esOficinaAliada?'oficina aliada':d.rol}</span></div>
+      </div>
       <div style="font-size:20px;font-weight:700;color:var(--brand)">${fmtMoney((d.comisionTotal||0)+acelerador)}</div>
       <div style="font-size:11px;color:var(--muted);margin-top:4px">${fmtMoney(d.montoRadicado+d.montoDesembolsado)} en ${d.numOperaciones} operación(es)</div>
       ${acelerador>0 ? `<div style="font-size:11px;color:#8A6D23;margin-top:4px;font-weight:700">+ ${fmtMoney(acelerador)} acelerador</div>` : ''}
@@ -847,6 +878,28 @@ async function cargarSeguimiento(){
     </div>
   `;
   }).join('') || `<p style="color:var(--muted);text-align:center;grid-column:1/-1">Sin actividad este mes todavía.</p>`;
+
+  const personas = Object.values(porPersona);
+  const totalRadicadoKpi = personas.reduce((s,d)=> s + (d.montoRadicado||0) + (d.montoDesembolsado||0), 0);
+  const totalOperacionesKpi = personas.reduce((s,d)=> s + (d.numOperaciones||0), 0);
+  const totalAceleradoresKpi = Object.values(aceleradorPorPersona).reduce((s,v)=> s + (v||0), 0);
+  document.getElementById('kpiTotalRadicado').textContent = fmtMoney(totalRadicadoKpi);
+  document.getElementById('kpiOperacionesActivas').textContent = totalOperacionesKpi;
+  document.getElementById('kpiAceleradoresMes').textContent = fmtMoney(totalAceleradoresKpi);
+
+  // Comisiones causadas (créditos ya desembolsados, valor real y
+  // congelado) vs. proyectadas (lo que sigue radicado, estimado con
+  // tarifas/config vigentes hoy) — misma lógica que usa "Consolidado".
+  const tarifasOrigenMapa = await cargarPuntosEntidadOrigen();
+  const valorPunto = CFG_SEGUIMIENTO ? CFG_SEGUIMIENTO.valor_punto : 0;
+  let comisionesCausadas = totalAceleradoresKpi, comisionesProyectadas = 0;
+  CREDITOS_MES.forEach(c=>{
+    const comision = comisionProyectadaCredito(c, tarifasOrigenMapa, CFG_SEGUIMIENTO, valorPunto);
+    if(c.estado === 'desembolsado') comisionesCausadas += comision;
+    else comisionesProyectadas += comision;
+  });
+  document.getElementById('kpiComisionesCausadas').textContent = fmtMoney(comisionesCausadas);
+  document.getElementById('kpiComisionesProyectadas').textContent = fmtMoney(comisionesProyectadas);
 }
 async function cambiarCreditoAdmin(el, campo){
   if(campo==='monto'){
