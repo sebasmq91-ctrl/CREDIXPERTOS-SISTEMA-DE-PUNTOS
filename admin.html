@@ -888,22 +888,9 @@ async function cargarSeguimiento(){
   document.getElementById('kpiAceleradoresMes').textContent = fmtMoney(totalAceleradoresKpi);
 
   // Comisión que le corresponde a Credixpertos (empresa), no al
-  // titular: ingreso de la entidad menos lo que se le paga al
-  // asesor/analista/oficina aliada por ese crédito. Causada = créditos
-  // ya desembolsados este mes (valor real y congelado); proyectada =
-  // lo que sigue radicado, estimado con tarifas/config vigentes hoy —
-  // misma lógica de "empresa" que ya usa la pestaña "Consolidado".
-  const tarifasOrigenMapa = await cargarPuntosEntidadOrigen();
-  const valorPunto = CFG_SEGUIMIENTO ? CFG_SEGUIMIENTO.valor_punto : 0;
-  let comisionesCausadas = 0, comisionesProyectadas = 0;
-  CREDITOS_MES.forEach(c=>{
-    if(!c.entidades) return; // créditos sin entidad (p.ej. producción propia) no generan ingreso para la empresa
-    const comisionTitular = comisionProyectadaCredito(c, tarifasOrigenMapa, CFG_SEGUIMIENTO, valorPunto);
-    const ingresoCredito = millonesExactos(c.monto) * (+c.entidades.entidad_paga || 0);
-    const comisionEmpresa = ingresoCredito - comisionTitular;
-    if(c.estado === 'desembolsado') comisionesCausadas += comisionEmpresa;
-    else comisionesProyectadas += comisionEmpresa;
-  });
+  // titular — mismo universo y misma matemática que "Consolidado", así
+  // que ambas pantallas siempre coinciden en el número.
+  const { causadas: comisionesCausadas, proyectadas: comisionesProyectadas } = await calcularComisionEmpresaMes();
   document.getElementById('kpiComisionesCausadas').textContent = fmtMoney(comisionesCausadas);
   document.getElementById('kpiComisionesProyectadas').textContent = fmtMoney(comisionesProyectadas);
 }
@@ -1040,6 +1027,31 @@ function comisionProyectadaCredito(c, tarifasOrigenMapa, cfg, valorPunto){
     return millones * entidadPaga * ((cfg?.porcentaje_oficina_aliada || 0) / 100);
   }
   return 0; // admin (producción propia) u otros: sin comisión
+}
+
+// Comisión que le queda a Credixpertos (empresa): mismo universo de
+// créditos y misma matemática que usa la pestaña "Consolidado" — todo
+// lo que sigue radicado (sin importar de qué mes sea) más lo
+// desembolsado DENTRO del mes en curso. Se centraliza acá para que
+// Seguimiento y Consolidado siempre muestren el mismo número.
+async function calcularComisionEmpresaMes(){
+  const inicioMes = mesActualISO() + '-01';
+  const { data } = await supabase.from('creditos')
+    .select('*, perfiles:titular_id(nombre, rol), entidades:entidad_id(nombre, entidad_paga)')
+    .or(`estado.eq.radicado,fecha_desembolso.gte.${inicioMes}`);
+  const tarifasOrigenMapa = await cargarPuntosEntidadOrigen();
+  const cfg = await configVigente();
+  const valorPunto = cfg ? cfg.valor_punto : 0;
+  let causadas = 0, proyectadas = 0;
+  (data||[]).forEach(c=>{
+    if(!c.entidades) return;
+    const comisionTitular = comisionProyectadaCredito(c, tarifasOrigenMapa, cfg, valorPunto);
+    const ingreso = millonesExactos(c.monto) * (+c.entidades.entidad_paga || 0);
+    const comisionEmpresa = ingreso - comisionTitular;
+    if(c.estado === 'desembolsado') causadas += comisionEmpresa;
+    else proyectadas += comisionEmpresa;
+  });
+  return { causadas, proyectadas };
 }
 
 async function cargarConsolidado(){
