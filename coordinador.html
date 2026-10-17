@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Panel de coordinación · Credixpertos</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&display=swap">
+<style>
+:root{ --brand:#16293A; --brand2:#0E6472; --cyan:#1AD4E0; --cyan-light:#E6FBFC; --gold-light:#FBF3E2; --gold-text:#8A6D23; --text:#16293A; --muted:#6B7A89; --border:#E6EAEE; --red:#991B1B; --red-bg:#FEE2E2; --green:#1F9254; --green-bg:#E4F7EC; }
+*{box-sizing:border-box;}
+body{margin:0;font-family:'Manrope',-apple-system,sans-serif;color:var(--text);background:#EEF2F5;}
+.wrap{max-width:1400px;margin:0 auto;padding:0 28px 60px;}
+.hero{position:relative;background:linear-gradient(120deg,var(--brand) 0%,var(--brand) 55%,var(--brand2) 100%);border-radius:0 0 20px 20px;padding:32px 40px 36px;margin:0 -28px 28px;color:white;overflow:hidden;}
+.hero::before{content:'';position:absolute;top:-60px;right:-40px;width:260px;height:260px;border-radius:50%;background:rgba(26,212,224,0.14);pointer-events:none;}
+.hero-top{position:relative;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px;}
+.hero-brand{display:flex;align-items:center;gap:16px;}
+.hero-logo{background:#FFFFFF;border-radius:12px;padding:8px 16px;display:flex;align-items:center;box-shadow:0 6px 16px rgba(0,0,0,0.18);}
+.hero-logo img{height:38px;width:auto;display:block;}
+.hero .tag{font-size:12px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#7FEAF2;}
+.hero h1{font-family:'Manrope',sans-serif;font-size:22px;margin:2px 0 0;font-weight:800;color:#fff;}
+.btn{font-family:'Manrope',sans-serif;font-weight:700;font-size:13px;border:none;border-radius:999px;padding:10px 20px;cursor:pointer;}
+.btn-primary{background:var(--brand);color:white;}
+.btn-ghost{background:var(--cyan-light);color:#0a5c6e;}
+.btn-gold{background:var(--gold-light);color:var(--gold-text);}
+.btn-salir{background:rgba(255,255,255,0.1);color:white;border:1px solid rgba(255,255,255,0.18);}
+.card{background:white;border:none;border-radius:20px;padding:28px 32px;margin-bottom:18px;box-shadow:0 2px 14px rgba(22,41,58,0.06);}
+.card h2{font-family:'Manrope',sans-serif;font-size:18px;color:var(--text);margin:0 0 4px;font-weight:800;}
+.sub{font-size:13px;color:var(--muted);margin:0 0 14px;}
+table{width:100%;border-collapse:collapse;font-size:12.5px;}
+th{background:var(--brand);color:white;padding:10px;text-align:left;font-weight:700;font-size:10.5px;text-transform:uppercase;}
+td{padding:10px 10px;border-bottom:1px solid var(--border);}
+input,select{font-family:'Manrope',sans-serif;font-size:13.5px;padding:9px 10px;border:1px solid var(--border);border-radius:10px;width:100%;}
+.metricas-fila{display:flex;gap:26px;flex-wrap:wrap;padding:10px 14px;background:#F7FBFC;border-radius:10px;font-size:12.5px;color:var(--muted);}
+.metricas-fila b{color:var(--text);font-size:13.5px;}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;}
+.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;}
+label{display:block;font-size:10.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;}
+.row-actions{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;}
+.pill{display:inline-block;font-size:10px;font-weight:700;padding:4px 10px;border-radius:999px;text-transform:uppercase;}
+.pill-rad{background:var(--gold-light);color:var(--gold-text);}
+.pill-des{background:var(--green-bg);color:var(--green);}
+.msg{padding:10px 12px;border-radius:10px;font-size:12.5px;margin-top:10px;display:none;}
+.msg.ok{background:var(--green-bg);color:var(--green);}
+.msg.err{background:var(--red-bg);color:var(--red);}
+.tabs{position:relative;display:flex;gap:8px;margin:24px 0 0;flex-wrap:wrap;}
+.tab{background:rgba(255,255,255,0.08);color:#D7E3EC;border:1px solid rgba(255,255,255,0.14);border-radius:999px;padding:12px 20px;font-size:14px;font-weight:600;cursor:pointer;}
+.tab.activo{background:#FFFFFF;color:var(--brand);border-color:#FFFFFF;font-weight:800;}
+.panel{display:none;} .panel.activo{display:block;}
+.note{background:var(--gold-light);border:1px solid #F3E6C4;border-radius:12px;padding:11px 14px;font-size:12px;color:var(--gold-text);margin-top:14px;line-height:1.5;}
+.warn{background:var(--red-bg);border:1px solid #FCA5A5;border-radius:12px;padding:11px 14px;font-size:12px;color:var(--red);margin-top:14px;line-height:1.5;}
+.mini-card{border:1px solid var(--border);border-radius:14px;padding:14px;}
+.mini-card b{display:block;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:10px;}
+.rent-toggle{background:var(--gold-light);color:var(--gold-text);border:none;border-radius:999px;padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer;}
+.pos{color:var(--green);font-weight:700;} .neg{color:var(--red);font-weight:700;}
+.kpi-strip{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:18px;}
+.kpi-tile{background:white;border-radius:16px;padding:18px 22px;box-shadow:0 2px 10px rgba(22,41,58,0.06);}
+.kpi-tile.kpi-accent{background:linear-gradient(135deg,var(--cyan),var(--brand2));box-shadow:0 4px 14px rgba(14,100,114,0.3);}
+.kpi-tile .kpi-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);}
+.kpi-tile.kpi-accent .kpi-label{color:var(--cyan-light);}
+.kpi-tile .kpi-value{font-size:24px;font-weight:800;margin-top:6px;color:var(--text);}
+.kpi-tile.kpi-accent .kpi-value{color:#fff;}
+.persona-card{border:1px solid var(--border);border-radius:14px;padding:14px;cursor:pointer;}
+.persona-card.oficina-aliada{border-color:#F3E6C4;background:var(--gold-light);}
+.persona-top{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
+.persona-avatar{width:34px;height:34px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:12px;flex-shrink:0;}
+.persona-avatar.rol-analista{background:var(--cyan);color:var(--brand);}
+.persona-avatar.rol-asesor{background:var(--brand);color:#fff;}
+.persona-avatar.rol-oficina_aliada{background:#C9A34E;color:#fff;}
+.persona-nombre{font-size:12.5px;font-weight:700;color:var(--text);line-height:1.25;}
+</style>
+</head>
+<body>
+<div class="wrap" id="app" style="display:none">
+
+  <div class="hero">
+    <div class="hero-top">
+      <div class="hero-brand">
+        <div class="hero-logo"><img src="logo-credixpertos.png" alt="Credixpertos"></div>
+        <div>
+          <div class="tag">Panel de coordinación</div>
+          <h1 id="nombreCoord">Credixpertos — coordinación</h1>
+        </div>
+      </div>
+      <button class="btn btn-salir" onclick="cerrarSesion()">Salir</button>
+    </div>
+    <div class="tabs">
+      <div class="tab activo" data-panel="pSeguimiento" onclick="cambiarTab('pSeguimiento')">Seguimiento en vivo</div>
+      <div class="tab" data-panel="pUsuarios" onclick="cambiarTab('pUsuarios')">Usuarios</div>
+      <div class="tab" data-panel="pAceleradores" onclick="cambiarTab('pAceleradores'); cargarAceleradores();">Aceleradores</div>
+      <div class="tab" data-panel="pAsistencia" onclick="cambiarTab('pAsistencia'); abrirAsistencia();">Asistencia</div>
+    </div>
+  </div>
+
+  <!-- SEGUIMIENTO EN VIVO -->
+  <div class="panel activo" id="pSeguimiento">
+    <div class="kpi-strip" style="grid-template-columns:repeat(3,1fr)">
+      <div class="kpi-tile kpi-accent"><div class="kpi-label">Total radicado del mes</div><div class="kpi-value" id="kpiTotalRadicado">$0</div></div>
+      <div class="kpi-tile"><div class="kpi-label">Operaciones activas</div><div class="kpi-value" id="kpiOperacionesActivas">0</div></div>
+      <div class="kpi-tile"><div class="kpi-label">Aceleradores del mes</div><div class="kpi-value" id="kpiAceleradoresMes">$0</div></div>
+    </div>
+    <div class="card">
+      <h2>Resumen del mes por persona</h2>
+      <p class="sub">Haz clic en una tarjeta para ver el detalle: radicado por entidad, desembolsado y cliente por cliente.</p>
+      <div class="grid3" id="tarjetasPersona" style="grid-template-columns:repeat(auto-fill,minmax(220px,1fr))"></div>
+    </div>
+    <div class="card">
+      <h2>Control de radicación</h2>
+      <p class="sub">Todo lo que sigue radicado, pendiente de desembolso, de cualquier mes. Lo más antiguo primero.</p>
+      <div class="grid4" style="margin-bottom:14px">
+        <div><label>Asesor</label><select id="radFiltroPersona" onchange="renderRadicacion()"><option value="">Todos</option></select></div>
+        <div><label>Entidad</label><select id="radFiltroEntidad" onchange="renderRadicacion()"><option value="">Todas</option></select></div>
+        <div style="grid-column:span 2"><label>Cliente / cédula</label><input type="text" id="radFiltroTexto" placeholder="Buscar…" oninput="renderRadicacion()"></div>
+      </div>
+      <div style="overflow-x:auto"><table>
+        <thead><tr><th>Asesor</th><th>Cliente</th><th>Cédula</th><th>Entidad</th><th>Monto</th><th>Radicado</th><th>Días</th></tr></thead>
+        <tbody id="radicacionBody"><tr><td colspan="7" style="text-align:center;color:var(--muted)">Cargando…</td></tr></tbody>
+      </table></div>
+    </div>
+  </div>
+
+  <!-- USUARIOS -->
+  <div class="panel" id="pUsuarios">
+    <div class="card">
+      <h2>Usuarios</h2>
+      <p class="sub">Aquí asignas la analista de cada asesor y su fecha de ingreso (desde ahí se cuenta el primer mes del garantizado). Las invitaciones de usuarios nuevos las hace el administrador.</p>
+      <div style="overflow-x:auto"><table>
+        <thead><tr><th>Nombre</th><th>Rol</th><th>Analista asignada</th><th>Fecha de ingreso</th><th>Activo</th></tr></thead>
+        <tbody id="usuariosBody"></tbody>
+      </table></div>
+      <div class="msg" id="msgUsuarios"></div>
+    </div>
+  </div>
+
+  <!-- ACELERADORES -->
+  <div class="panel" id="pAceleradores">
+    <div class="card">
+      <h2>Registrar acelerador</h2>
+      <p class="sub">Bonos puntuales por una meta concreta (ej. "el que radique 10 documentos hoy se gana $50.000"). El garantizado del primer mes se confirma en la pestaña Asistencia.</p>
+      <div class="grid4">
+        <div style="grid-column:span 2"><label>Asesor o analista</label><select id="accPerfil"></select></div>
+        <div><label>Valor ($)</label><input type="text" inputmode="decimal" id="accMonto" onblur="reformatearInputDinero(this)"></div>
+        <div><label>Mes al que suma</label><input type="month" id="accMes"></div>
+      </div>
+      <div class="grid2" style="margin-top:14px">
+        <div><label>Motivo</label><input type="text" id="accMotivo" placeholder="Ej: 10 créditos radicados el martes"></div>
+        <div><label>Fecha en que se ganó</label><input type="date" id="accFecha"></div>
+      </div>
+      <div class="row-actions"><button class="btn btn-primary" onclick="agregarAcelerador()">+ Registrar acelerador</button></div>
+    </div>
+    <div class="card">
+      <h2>Aceleradores registrados</h2>
+      <div style="overflow-x:auto"><table>
+        <thead><tr><th>Persona</th><th>Mes</th><th>Valor</th><th>Motivo</th><th>Fecha</th><th></th></tr></thead>
+        <tbody id="aceleradoresBody"><tr><td colspan="6" style="text-align:center;color:var(--muted)">Cargando…</td></tr></tbody>
+      </table></div>
+    </div>
+  </div>
+
+  <!-- ASISTENCIA -->
+  <div class="panel" id="pAsistencia"><div id="asistenciaRaiz"></div></div>
+
+</div>
+
+<!-- MODAL DE DETALLE POR PERSONA -->
+<div id="modalOverlay" style="display:none;position:fixed;inset:0;background:rgba(10,37,64,0.55);z-index:50;align-items:center;justify-content:center;padding:20px">
+  <div style="background:white;border-radius:16px;max-width:720px;width:100%;max-height:85vh;overflow-y:auto;padding:26px 28px">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px">
+      <div>
+        <div class="tag" style="color:var(--cyan);font-size:10.5px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase" id="modalRol">—</div>
+        <h2 style="margin:2px 0 0" id="modalNombre">—</h2>
+      </div>
+      <button class="btn btn-ghost" onclick="cerrarModal()">Cerrar</button>
+    </div>
+    <h3 style="font-family:'Manrope',sans-serif;font-weight:800;color:var(--text);font-size:14px;margin-bottom:8px">Radicado por entidad (pendiente de desembolso)</h3>
+    <table style="margin-bottom:18px">
+      <thead><tr><th>Entidad</th><th>Créditos</th><th>Monto total</th></tr></thead>
+      <tbody id="modalRadicadoBody"></tbody>
+    </table>
+    <h3 style="font-family:'Manrope',sans-serif;font-weight:800;color:var(--text);font-size:14px;margin-bottom:8px">Desembolsado este mes por entidad</h3>
+    <table style="margin-bottom:18px">
+      <thead><tr><th>Entidad</th><th>Créditos</th><th>Monto total</th></tr></thead>
+      <tbody id="modalDesembolsadoBody"></tbody>
+    </table>
+    <h3 style="font-family:'Manrope',sans-serif;font-weight:800;color:var(--text);font-size:14px;margin-bottom:8px">Cliente por cliente</h3>
+    <table>
+      <thead><tr><th>Cliente</th><th>Cédula</th><th>Entidad</th><th>Estado</th><th>Monto</th></tr></thead>
+      <tbody id="modalClientesBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<script src="config.js"></script>
+<script src="asistencia.js"></script>
+<script>
+let PERFIL = null;
+let PERFILES = [];          // todos los perfiles
+let ENTIDADES = {};         // id -> nombre
+let CREDITOS = [];          // créditos del mes + todos los radicados (vista limitada, sin puntos ni comisión)
+let ACEL_MES = [];
+const ROL_ETIQUETA = { asesor:'Asesor', analista:'Analista', oficina_aliada:'Oficina aliada', coordinador:'Coordinador', admin:'Administrador' };
+
+function esc(t){ return String(t==null?'':t).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function cambiarTab(id){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('activo', t.dataset.panel===id));
+  document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('activo', p.id===id));
+}
+function mostrarMsg(id, texto, ok){
+  const el = document.getElementById(id);
+  el.textContent = texto; el.className = 'msg ' + (ok?'ok':'err'); el.style.display = 'block';
+  setTimeout(()=>el.style.display='none', 4000);
+}
+
+async function iniciar(){
+  const sesion = await exigirSesion(['coordinador','admin']);
+  if(!sesion) return;
+  PERFIL = sesion.perfil;
+  document.getElementById('nombreCoord').textContent = 'Coordinación — ' + PERFIL.nombre;
+  document.getElementById('app').style.display = '';
+  await cargarSeguimiento();
+  await cargarUsuarios();
+  // Esta pantalla no usa "tiempo real" (la base no le entrega los créditos
+  // directos al coordinador), así que se refresca sola cada minuto.
+  setInterval(()=>{ if(document.getElementById('pSeguimiento').classList.contains('activo')) cargarSeguimiento(); }, 60000);
+}
+
+/* ---------- Seguimiento en vivo ---------- */
+async function cargarSeguimiento(){
+  const inicioMes = mesActualISO() + '-01';
+  const [rCre, rPer, rEnt, rAce] = await Promise.all([
+    supabase.from('creditos_coord').select('*').or(`estado.eq.radicado,fecha_radicado.gte.${inicioMes},fecha_desembolso.gte.${inicioMes}`).order('fecha_radicado', { ascending:true }),
+    supabase.from('perfiles').select('id,nombre,rol,analista_id,activo,fecha_ingreso').order('nombre'),
+    supabase.from('entidades_coord').select('id,nombre'),
+    supabase.from('aceleradores').select('perfil_id,monto').eq('mes', mesActualISO()),
+  ]);
+  CREDITOS = rCre.data || [];
+  PERFILES = rPer.data || [];
+  ENTIDADES = {}; (rEnt.data||[]).forEach(e=>{ ENTIDADES[e.id] = e.nombre; });
+  ACEL_MES = rAce.data || [];
+
+  const activos = PERFILES.filter(p=>p.activo && ['asesor','analista','oficina_aliada'].includes(p.rol));
+  const porPersona = {};
+  activos.forEach(p=>{ porPersona[p.id] = { nombre:p.nombre, rol:p.rol, rad:0, des:0, ops:0 }; });
+  CREDITOS.forEach(c=>{
+    const d = porPersona[c.titular_id]; if(!d) return;
+    // Solo lo del mes en curso para el resumen (lo radicado de meses anteriores se ve en Control de radicación)
+    const delMes = (c.fecha_radicado && c.fecha_radicado >= inicioMes) || (c.fecha_desembolso && c.fecha_desembolso >= inicioMes);
+    if(!delMes) return;
+    d.ops += 1;
+    if(c.estado==='radicado') d.rad += parseMonto(c.monto);
+    if(c.estado==='desembolsado') d.des += parseMonto(c.monto);
+  });
+  const iniciales = n => (n||'').trim().split(/\s+/).slice(0,2).map(p=>p[0]||'').join('').toUpperCase();
+  const lista = Object.entries(porPersona);
+  document.getElementById('tarjetasPersona').innerHTML = lista.map(([id,d])=>`
+    <div class="persona-card${d.rol==='oficina_aliada'?' oficina-aliada':''}" onclick="abrirDetallePersona('${id}')">
+      <div class="persona-top">
+        <div class="persona-avatar rol-${d.rol}">${esc(iniciales(d.nombre))}</div>
+        <div class="persona-nombre">${esc(d.nombre)}<br><span style="font-weight:500;color:var(--muted);text-transform:uppercase;font-size:10px;letter-spacing:.4px">${esc((ROL_ETIQUETA[d.rol]||d.rol))}</span></div>
+      </div>
+      <div style="font-size:20px;font-weight:700;color:var(--brand)">${fmtMoney(d.rad + d.des)}</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:4px">${d.ops} operación(es) este mes</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:2px">${fmtMoney(d.rad)} radicado · ${fmtMoney(d.des)} desembolsado</div>
+      <div style="font-size:11px;color:var(--cyan);margin-top:6px">Ver detalle &rarr;</div>
+    </div>`).join('') || '<p style="color:var(--muted);text-align:center;grid-column:1/-1">Sin actividad este mes todavía.</p>';
+
+  document.getElementById('kpiTotalRadicado').textContent = fmtMoney(lista.reduce((s,[,d])=>s+d.rad+d.des,0));
+  document.getElementById('kpiOperacionesActivas').textContent = lista.reduce((s,[,d])=>s+d.ops,0);
+  document.getElementById('kpiAceleradoresMes').textContent = fmtMoney(ACEL_MES.reduce((s,a)=>s+(+a.monto||0),0));
+
+  // filtros del control de radicación (sin perder la selección actual)
+  const selP = document.getElementById('radFiltroPersona'), selE = document.getElementById('radFiltroEntidad');
+  const vp = selP.value, ve = selE.value;
+  selP.innerHTML = '<option value="">Todos</option>' + activos.map(p=>`<option value="${p.id}">${esc(p.nombre)}</option>`).join('');
+  selE.innerHTML = '<option value="">Todas</option>' + Object.entries(ENTIDADES).sort((a,b)=>a[1].localeCompare(b[1])).map(([id,n])=>`<option value="${id}">${esc(n)}</option>`).join('');
+  selP.value = vp; selE.value = ve;
+  renderRadicacion();
+}
+
+function renderRadicacion(){
+  const fp = document.getElementById('radFiltroPersona').value;
+  const fe = document.getElementById('radFiltroEntidad').value;
+  const ft = document.getElementById('radFiltroTexto').value.trim().toLowerCase();
+  const hoy = new Date(); hoy.setHours(12,0,0,0);
+  const nombre = id => (PERFILES.find(p=>p.id===id)||{}).nombre || '—';
+  const filas = CREDITOS.filter(c=>c.estado==='radicado')
+    .filter(c=>!fp || c.titular_id===fp)
+    .filter(c=>!fe || c.entidad_id===fe)
+    .filter(c=>!ft || (c.cliente||'').toLowerCase().includes(ft) || (c.cedula_cliente||'').toLowerCase().includes(ft));
+  document.getElementById('radicacionBody').innerHTML = filas.map(c=>{
+    let dias = '—';
+    if(c.fecha_radicado){ const [y,m,d] = c.fecha_radicado.split('-').map(Number); dias = Math.max(0, Math.round((hoy - new Date(y,m-1,d,12))/86400000)); }
+    return `<tr><td>${esc(nombre(c.titular_id))}</td><td>${esc(c.cliente||'—')}</td><td>${esc(c.cedula_cliente||'—')}</td>
+      <td>${esc(ENTIDADES[c.entidad_id]||'—')}</td><td>${fmtMoney(parseMonto(c.monto))}</td><td>${esc(c.fecha_radicado||'—')}</td><td>${dias}</td></tr>`;
+  }).join('') || '<tr><td colspan="7" style="text-align:center;color:var(--muted)">Nada radicado pendiente con esos filtros.</td></tr>';
+}
+
+function agruparPorEntidad(filas){
+  const g = {};
+  filas.forEach(r=>{
+    const n = ENTIDADES[r.entidad_id] || 'Sin entidad';
+    if(!g[n]) g[n] = { cantidad:0, monto:0 };
+    g[n].cantidad += 1; g[n].monto += parseMonto(r.monto);
+  });
+  return g;
+}
+function abrirDetallePersona(id){
+  const p = PERFILES.find(x=>x.id===id); if(!p) return;
+  const inicioMes = mesActualISO() + '-01';
+  const cs = CREDITOS.filter(c=>c.titular_id===id &&
+    ((c.fecha_radicado && c.fecha_radicado >= inicioMes) || (c.fecha_desembolso && c.fecha_desembolso >= inicioMes)));
+  const rad = cs.filter(c=>c.estado==='radicado'), des = cs.filter(c=>c.estado==='desembolsado');
+  document.getElementById('modalRol').textContent = ROL_ETIQUETA[p.rol] || p.rol;
+  document.getElementById('modalNombre').textContent = p.nombre;
+  document.getElementById('modalRadicadoBody').innerHTML = Object.entries(agruparPorEntidad(rad)).map(([n,d])=>
+    `<tr><td>${esc(n)}</td><td>${d.cantidad}</td><td>${fmtMoney(d.monto)}</td></tr>`).join('') || '<tr><td colspan="3" style="text-align:center;color:var(--muted)">Nada radicado pendiente este mes.</td></tr>';
+  document.getElementById('modalDesembolsadoBody').innerHTML = Object.entries(agruparPorEntidad(des)).map(([n,d])=>
+    `<tr><td>${esc(n)}</td><td>${d.cantidad}</td><td>${fmtMoney(d.monto)}</td></tr>`).join('') || '<tr><td colspan="3" style="text-align:center;color:var(--muted)">Nada desembolsado todavía este mes.</td></tr>';
+  document.getElementById('modalClientesBody').innerHTML = cs.map(c=>`<tr>
+    <td>${esc(c.cliente||'—')}</td><td>${esc(c.cedula_cliente||'—')}</td><td>${esc(ENTIDADES[c.entidad_id]||'—')}</td>
+    <td><span class="pill ${c.estado==='desembolsado'?'pill-des':'pill-rad'}">${c.estado==='desembolsado'?'Desembolsado':'Radicado'}</span></td>
+    <td>${fmtMoney(parseMonto(c.monto))}</td></tr>`).join('') || '<tr><td colspan="5" style="text-align:center;color:var(--muted)">Sin créditos este mes.</td></tr>';
+  document.getElementById('modalOverlay').style.display = 'flex';
+}
+function cerrarModal(){ document.getElementById('modalOverlay').style.display = 'none'; }
+
+/* ---------- Usuarios ---------- */
+async function cargarUsuarios(){
+  const { data } = await supabase.from('perfiles').select('id,nombre,rol,analista_id,activo,fecha_ingreso').order('nombre');
+  const todos = (data||[]).filter(u=>u.rol!=='admin');
+  const analistas = todos.filter(u=>u.rol==='analista');
+  document.getElementById('usuariosBody').innerHTML = todos.map(u=>{
+    const editable = (u.rol==='asesor' || u.rol==='analista');
+    return `<tr data-id="${u.id}">
+      <td>${esc(u.nombre)}</td>
+      <td>${esc(ROL_ETIQUETA[u.rol]||u.rol)}</td>
+      <td>${u.rol==='asesor' ? `<select class="u-analista" onchange="guardarUsuario('${u.id}')">
+          <option value="">Sin asignar</option>
+          ${analistas.map(a=>`<option value="${a.id}" ${u.analista_id===a.id?'selected':''}>${esc(a.nombre)}</option>`).join('')}
+        </select>` : '—'}</td>
+      <td>${u.rol==='asesor' ? `<input type="date" class="u-ingreso" value="${u.fecha_ingreso||''}" onchange="guardarUsuario('${u.id}')">` : '—'}</td>
+      <td>${editable ? `<input type="checkbox" class="u-activo" ${u.activo?'checked':''} onchange="guardarUsuario('${u.id}')">` : (u.activo?'Sí':'No')}</td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="5" style="text-align:center;color:var(--muted)">Sin usuarios todavía.</td></tr>';
+}
+async function guardarUsuario(id){
+  const tr = document.querySelector(`#usuariosBody tr[data-id="${id}"]`);
+  const analista = tr.querySelector('.u-analista');
+  const ingreso = tr.querySelector('.u-ingreso');
+  const activo = tr.querySelector('.u-activo');
+  const { error } = await supabase.rpc('coordinador_editar_usuario', {
+    p_id: id,
+    p_fecha_ingreso: ingreso ? (ingreso.value || null) : null,
+    p_analista_id: analista ? (analista.value || null) : null,
+    p_activo: activo ? activo.checked : true,
+  });
+  if(error){ mostrarMsg('msgUsuarios', 'No se pudo guardar: '+error.message, false); await cargarUsuarios(); return; }
+  mostrarMsg('msgUsuarios', 'Guardado.', true);
+}
+
+/* ---------- Aceleradores ---------- */
+let ACELERADORES_CARGADO = false;
+async function cargarAceleradores(){
+  if(!ACELERADORES_CARGADO){
+    const { data: perfiles } = await supabase.from('perfiles').select('id,nombre,rol')
+      .in('rol', ['asesor','analista']).eq('activo', true).order('nombre');
+    document.getElementById('accPerfil').innerHTML = (perfiles||[])
+      .map(p=>`<option value="${p.id}">${esc(p.nombre)} · ${ROL_ETIQUETA[p.rol]}</option>`).join('');
+    document.getElementById('accMes').value = mesActualISO();
+    document.getElementById('accFecha').value = hoyISO();
+    ACELERADORES_CARGADO = true;
+  }
+  const { data } = await supabase.from('aceleradores').select('*, perfiles:perfil_id(nombre, rol)')
+    .order('mes', { ascending:false }).order('fecha', { ascending:false });
+  document.getElementById('aceleradoresBody').innerHTML = (data||[]).map(a=>`
+    <tr>
+      <td>${esc(a.perfiles?.nombre||'—')} <span style="color:var(--muted);font-size:11px">· ${esc(ROL_ETIQUETA[a.perfiles?.rol]||'—')}</span></td>
+      <td>${esc(a.mes)}</td>
+      <td style="font-weight:700">${fmtMoney(a.monto)}</td>
+      <td>${a.tipo==='garantizado' ? '<span class="pill pill-des">Garantizado</span> ' : ''}${esc(a.motivo||'—')}</td>
+      <td>${esc(a.fecha||'—')}</td>
+      <td><button class="btn btn-ghost" onclick="borrarAcelerador('${a.id}')">Eliminar</button></td>
+    </tr>`).join('') || '<tr><td colspan="6" style="text-align:center;color:var(--muted)">Sin aceleradores registrados todavía.</td></tr>';
+}
+async function agregarAcelerador(){
+  const perfilId = document.getElementById('accPerfil').value;
+  if(!perfilId){ alert('No hay asesores ni analistas activos para elegir.'); return; }
+  const monto = parseMonto(document.getElementById('accMonto').value);
+  if(monto<=0){ alert('Pon el valor del acelerador.'); return; }
+  const mes = document.getElementById('accMes').value || mesActualISO();
+  const motivo = document.getElementById('accMotivo').value;
+  const fecha = document.getElementById('accFecha').value || hoyISO();
+  const { error } = await supabase.from('aceleradores').insert({ perfil_id: perfilId, monto, mes, motivo, fecha });
+  if(error){ alert('No se pudo registrar: '+error.message); return; }
+  document.getElementById('accMonto').value = '';
+  document.getElementById('accMotivo').value = '';
+  await cargarAceleradores();
+  await cargarSeguimiento();
+}
+async function borrarAcelerador(id){
+  if(!confirm('¿Eliminar este acelerador?')) return;
+  await supabase.from('aceleradores').delete().eq('id', id);
+  await cargarAceleradores();
+  await cargarSeguimiento();
+}
+
+/* ---------- Asistencia ---------- */
+async function abrirAsistencia(){
+  await montarAsistencia(document.getElementById('asistenciaRaiz'), { puedeConfigurar:false, perfilId: PERFIL.id });
+}
+
+iniciar();
+</script>
+</body>
+</html>

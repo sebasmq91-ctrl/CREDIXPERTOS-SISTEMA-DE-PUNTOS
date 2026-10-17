@@ -99,6 +99,7 @@ label{display:block;font-size:10.5px;font-weight:700;color:var(--muted);text-tra
       <div class="tab" data-panel="pUsuarios" onclick="cambiarTab('pUsuarios')">Usuarios</div>
       <div class="tab" data-panel="pConsolidado" onclick="cambiarTab('pConsolidado'); cargarConsolidado();">Consolidado</div>
       <div class="tab" data-panel="pAceleradores" onclick="cambiarTab('pAceleradores'); cargarAceleradores();">Aceleradores</div>
+      <div class="tab" data-panel="pAsistencia" onclick="cambiarTab('pAsistencia'); abrirAsistencia();">Asistencia</div>
       <div class="tab" data-panel="pCierres" onclick="cambiarTab('pCierres'); cargarCierres();">Cierres mensuales</div>
     </div>
   </div>
@@ -121,8 +122,9 @@ label{display:block;font-size:10.5px;font-weight:700;color:var(--muted);text-tra
       <div class="grid3" id="tarjetasPersona" style="grid-template-columns:repeat(auto-fill,minmax(220px,1fr))"></div>
     </div>
     <div class="card" id="cardOficinaAliada" style="display:none">
-      <h2>Registrar crédito de oficina aliada</h2>
+      <h2>Registrar crédito de oficina aliada / freelance</h2>
       <p class="sub">Siempre es campaña manual — así que no hay que elegir origen. Queda "radicado"; márcalo como desembolsado cuando corresponda, en la pestaña "Consolidado".</p>
+      <div style="max-width:380px;margin-bottom:14px"><label>Oficina aliada / freelance</label><select id="oaTitular"></select></div>
       <div class="grid4">
         <div><label>Cliente</label><input type="text" id="oaCliente"></div>
         <div><label>Cédula</label><input type="text" id="oaCedula"></div>
@@ -182,7 +184,7 @@ label{display:block;font-size:10.5px;font-weight:700;color:var(--muted);text-tra
       <div style="margin-top:16px;max-width:420px">
         <label>Porcentaje de la analista sobre sus propios clientes de mercado natural (%)</label>
         <input type="number" id="cfgPorcentajeAnalistaMN" style="margin-bottom:14px">
-        <label>Porcentaje de la oficina aliada sobre campaña manual (%)</label>
+        <label>Porcentaje de la oficina aliada sobre campaña manual (%) — por defecto; cada persona puede tener el suyo en Usuarios</label>
         <input type="number" id="cfgPorcentajeOficinaAliada">
       </div>
       <div class="note"><b style="display:inline">Regla:</b> la comisión variable se paga completa desde el primer punto — no hay "zona intermedia" con tarifa reducida. Encima de esa comisión, al llegar a los puntos de cada nivel se suma el garantizado de ese nivel. El Nivel 3 es un techo: por encima de esos puntos el garantizado no sigue subiendo (la comisión variable sí sigue creciendo con cada punto).</div>
@@ -228,12 +230,12 @@ label{display:block;font-size:10.5px;font-weight:700;color:var(--muted);text-tra
   <div class="panel" id="pUsuarios">
     <div class="card">
       <h2>Invitar usuario nuevo</h2>
-      <p class="sub">Le llega un correo de invitación para poner su propia contraseña.</p>
+      <p class="sub">Le llega un correo de invitación para poner su propia contraseña. Para el asesor freelance 70/30: rol "Oficina aliada" y luego ponle 70 en "% propio".</p>
       <div class="grid3">
         <div><label>Nombre completo</label><input type="text" id="invNombre"></div>
         <div><label>Correo</label><input type="email" id="invEmail"></div>
         <div><label>Rol</label>
-          <select id="invRol"><option value="asesor">Asesor comercial</option><option value="analista">Analista de crédito</option><option value="admin">Administrador</option></select>
+          <select id="invRol"><option value="asesor">Asesor comercial</option><option value="analista">Analista de crédito</option><option value="coordinador">Coordinador</option><option value="oficina_aliada">Oficina aliada / asesor freelance</option><option value="admin">Administrador</option></select>
         </div>
       </div>
       <div class="row-actions"><button class="btn btn-primary" onclick="invitarUsuario()">Enviar invitación</button></div>
@@ -242,7 +244,7 @@ label{display:block;font-size:10.5px;font-weight:700;color:var(--muted);text-tra
     <div class="card">
       <h2>Usuarios actuales</h2>
       <table>
-        <thead><tr><th>Nombre</th><th>Rol</th><th>Analista asignada</th><th>Activo</th><th></th></tr></thead>
+        <thead><tr><th>Nombre</th><th>Rol</th><th>Analista asignada</th><th>Fecha de ingreso</th><th>% propio</th><th>Activo</th></tr></thead>
         <tbody id="usuariosBody"></tbody>
       </table>
     </div>
@@ -311,6 +313,9 @@ label{display:block;font-size:10.5px;font-weight:700;color:var(--muted);text-tra
     </div>
   </div>
 
+  <!-- ASISTENCIA -->
+  <div class="panel" id="pAsistencia"><div id="asistenciaRaiz"></div></div>
+
   <!-- CIERRES MENSUALES -->
   <div class="panel" id="pCierres">
     <div class="card">
@@ -359,6 +364,7 @@ label{display:block;font-size:10.5px;font-weight:700;color:var(--muted);text-tra
 </div>
 
 <script src="config.js"></script>
+<script src="asistencia.js"></script>
 <script>
 let PERFIL = null;
 let ENTIDADES = [];
@@ -372,6 +378,7 @@ async function iniciar(){
 
   await cargarConfigForm();
   await cargarEntidades();
+  await cargarComisionPersonal();
   await cargarUsuarios();
   await cargarAnalistasActivas();
   await cargarOficinaAliada();
@@ -406,20 +413,22 @@ async function cargarAnalistasActivas(){
 /* ---------- Oficina aliada ---------- */
 let OFICINA_ALIADA_ID = null;
 async function cargarOficinaAliada(){
-  const { data } = await supabase.from('perfiles').select('id').eq('rol', 'oficina_aliada').eq('activo', true).limit(1).maybeSingle();
-  if(!data) return; // todavía no se ha creado el perfil en Supabase — la tarjeta queda oculta
-  OFICINA_ALIADA_ID = data.id;
+  const { data } = await supabase.from('perfiles').select('id,nombre').eq('rol', 'oficina_aliada').eq('activo', true).order('nombre');
+  if(!data || !data.length) return; // todavía no se ha creado ningún perfil de oficina aliada — la tarjeta queda oculta
+  OFICINA_ALIADA_ID = data[0].id;
+  document.getElementById('oaTitular').innerHTML = data.map(o=>`<option value="${o.id}">${o.nombre}</option>`).join('');
   document.getElementById('oaEntidad').innerHTML = ENTIDADES.map(e=>`<option value="${e.id}">${e.nombre}</option>`).join('');
   document.getElementById('oaFecha').value = hoyISO();
   document.getElementById('cardOficinaAliada').style.display = '';
 }
 async function agregarCreditoOficinaAliada(){
-  if(!OFICINA_ALIADA_ID) return;
+  const titularOA = document.getElementById('oaTitular').value || OFICINA_ALIADA_ID;
+  if(!titularOA) return;
   const monto = parseMonto(document.getElementById('oaMonto').value);
   const fecha = document.getElementById('oaFecha').value || hoyISO();
   const analistaGestion = document.getElementById('oaAnalistaGestion').value || null;
   const { error } = await supabase.from('creditos').insert({
-    titular_id: OFICINA_ALIADA_ID,
+    titular_id: titularOA,
     cliente: document.getElementById('oaCliente').value,
     cedula_cliente: document.getElementById('oaCedula').value,
     monto, entidad_id: document.getElementById('oaEntidad').value,
@@ -752,6 +761,7 @@ async function cargarUsuarios(){
   const { data } = await supabase.from('perfiles').select('*').order('nombre');
   const todos = data || [];
   const analistas = todos.filter(u=>u.rol==='analista');
+  await cargarComisionPersonal();
   document.getElementById('usuariosBody').innerHTML = todos.map(u=>`
     <tr data-id="${u.id}">
       <td>${u.nombre}</td>
@@ -761,9 +771,38 @@ async function cargarUsuarios(){
           <option value="">Sin asignar</option>
           ${analistas.map(a=>`<option value="${a.id}" ${u.analista_id===a.id?'selected':''}>${a.nombre}</option>`).join('')}
         </select>` : '—'}</td>
+      <td>${u.rol==='asesor' ? `<input type="date" value="${u.fecha_ingreso||''}" onchange="cambiarFechaIngreso(this,'${u.id}')">` : '—'}</td>
+      <td>${u.rol==='oficina_aliada' ? `<input type="number" min="0" max="100" step="0.5" style="max-width:90px" placeholder="global" value="${COMISION_PERSONAL[u.id]!==undefined?COMISION_PERSONAL[u.id]:''}" onchange="cambiarPorcentajePropio(this,'${u.id}')"> %` : '—'}</td>
       <td><input type="checkbox" ${u.activo?'checked':''} onchange="cambiarActivoUsuario(this,'${u.id}')"></td>
-      <td></td>
-    </tr>`).join('') || `<tr><td colspan="5" style="text-align:center;color:var(--muted)">Sin usuarios todavía.</td></tr>`;
+    </tr>`).join('') || `<tr><td colspan="6" style="text-align:center;color:var(--muted)">Sin usuarios todavía.</td></tr>`;
+}
+// Porcentaje de comisión propio por persona (ej. freelance 70). Si una
+// persona no tiene uno, se usa el global de "Niveles y tarifas".
+let COMISION_PERSONAL = {};
+async function cargarComisionPersonal(){
+  const { data } = await supabase.from('comision_personal').select('perfil_id, porcentaje');
+  COMISION_PERSONAL = {};
+  (data||[]).forEach(r=>{ COMISION_PERSONAL[r.perfil_id] = +r.porcentaje; });
+}
+async function cambiarPorcentajePropio(el, id){
+  const txt = el.value.trim();
+  if(txt===''){
+    const { error } = await supabase.from('comision_personal').delete().eq('perfil_id', id);
+    if(error){ alert('No se pudo quitar: '+error.message); return; }
+    delete COMISION_PERSONAL[id];
+  } else {
+    const v = +txt;
+    if(isNaN(v) || v<0 || v>100){ alert('Pon un porcentaje entre 0 y 100.'); await cargarUsuarios(); return; }
+    const { error } = await supabase.from('comision_personal').upsert({ perfil_id:id, porcentaje:v, actualizado_en:new Date().toISOString() }, { onConflict:'perfil_id' });
+    if(error){ alert('No se pudo guardar: '+error.message); return; }
+    COMISION_PERSONAL[id] = v;
+  }
+  await cargarSeguimiento();
+  if(CONSOLIDADO_CARGADO) await cargarConsolidado();
+}
+async function cambiarFechaIngreso(el, id){
+  const { error } = await supabase.from('perfiles').update({ fecha_ingreso: el.value || null }).eq('id', id);
+  if(error) alert('No se pudo guardar la fecha: '+error.message);
 }
 async function cambiarAnalistaAsignada(el, id){
   await supabase.from('perfiles').update({ analista_id: el.value || null }).eq('id', id);
@@ -869,7 +908,7 @@ async function cargarSeguimiento(){
     <div class="persona-card${esOficinaAliada?' oficina-aliada':''}" onclick="abrirDetallePersona('${id}')">
       <div class="persona-top">
         <div class="persona-avatar rol-${d.rol}">${iniciales(d.nombre)}</div>
-        <div class="persona-nombre">${d.nombre}<br><span style="font-weight:500;color:var(--muted);text-transform:uppercase;font-size:10px;letter-spacing:.4px">${esOficinaAliada?'oficina aliada':d.rol}</span></div>
+        <div class="persona-nombre">${d.nombre}<br><span style="font-weight:500;color:var(--muted);text-transform:uppercase;font-size:10px;letter-spacing:.4px">${esOficinaAliada?('oficina aliada'+(COMISION_PERSONAL[id]!==undefined?' · '+COMISION_PERSONAL[id]+'%':'')):d.rol}</span></div>
       </div>
       <div style="font-size:20px;font-weight:700;color:var(--brand)">${fmtMoney((d.comisionTotal||0)+acelerador)}</div>
       <div style="font-size:11px;color:var(--muted);margin-top:4px">${fmtMoney(d.montoRadicado+d.montoDesembolsado)} en ${d.numOperaciones} operación(es)</div>
@@ -1024,7 +1063,8 @@ function comisionProyectadaCredito(c, tarifasOrigenMapa, cfg, valorPunto){
     return millones * entidadPaga * ((cfg?.porcentaje_analista_mn || 0) / 100);
   }
   if(rol === 'oficina_aliada'){
-    return millones * entidadPaga * ((cfg?.porcentaje_oficina_aliada || 0) / 100);
+    const pct = (COMISION_PERSONAL[c.titular_id] !== undefined) ? COMISION_PERSONAL[c.titular_id] : (cfg?.porcentaje_oficina_aliada || 0);
+    return millones * entidadPaga * (pct / 100);
   }
   return 0; // admin (producción propia) u otros: sin comisión
 }
@@ -1381,6 +1421,11 @@ async function borrarAcelerador(id){
   await supabase.from('aceleradores').delete().eq('id', id);
   await cargarAceleradores();
   await cargarSeguimiento();
+}
+
+/* ---------- Asistencia (módulo compartido en asistencia.js) ---------- */
+async function abrirAsistencia(){
+  await montarAsistencia(document.getElementById('asistenciaRaiz'), { puedeConfigurar:true, perfilId: PERFIL.id });
 }
 
 iniciar();
