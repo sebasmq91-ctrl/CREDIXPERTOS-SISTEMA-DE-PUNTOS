@@ -100,6 +100,7 @@ label{display:block;font-size:10.5px;font-weight:700;color:var(--muted);text-tra
       <div class="tab" data-panel="pConsolidado" onclick="cambiarTab('pConsolidado'); cargarConsolidado();">Consolidado</div>
       <div class="tab" data-panel="pAceleradores" onclick="cambiarTab('pAceleradores'); cargarAceleradores();">Aceleradores</div>
       <div class="tab" data-panel="pAsistencia" onclick="cambiarTab('pAsistencia'); abrirAsistencia();">Asistencia</div>
+      <div class="tab" data-panel="pLiquidacion" onclick="cambiarTab('pLiquidacion'); abrirLiquidacion();">Liquidación aliados</div>
       <div class="tab" data-panel="pCierres" onclick="cambiarTab('pCierres'); cargarCierres();">Cierres mensuales</div>
     </div>
   </div>
@@ -315,6 +316,25 @@ label{display:block;font-size:10.5px;font-weight:700;color:var(--muted);text-tra
 
   <!-- ASISTENCIA -->
   <div class="panel" id="pAsistencia"><div id="asistenciaRaiz"></div></div>
+
+  <!-- LIQUIDACION DE OFICINAS ALIADAS / FREELANCE -->
+  <div class="panel" id="pLiquidacion">
+    <div class="card">
+      <h2>Liquidación de oficina aliada / freelance</h2>
+      <p class="sub">Informe del mes con los créditos desembolsados y lo que se le liquida a cada uno. Descárgalo en Excel o imprímelo / guárdalo como PDF para presentárselo.</p>
+      <div class="grid4" style="align-items:end">
+        <div><label>Oficina aliada / freelance</label><select id="liqPersona" onchange="generarLiquidacion()"></select></div>
+        <div><label>Mes</label><input type="month" id="liqMes" onchange="generarLiquidacion()"></div>
+        <div><label style="text-transform:none;font-size:12px;display:flex;gap:8px;align-items:center"><input type="checkbox" id="liqDetalle" style="width:auto" onchange="renderLiquidacion()"> Mostrar comisión total de la entidad y %</label></div>
+        <div class="row-actions" style="margin-top:0">
+          <button class="btn btn-primary" onclick="descargarLiquidacionCSV()">Descargar Excel</button>
+          <button class="btn btn-ghost" onclick="imprimirLiquidacion()">Imprimir / PDF</button>
+        </div>
+      </div>
+      <div style="overflow-x:auto;margin-top:16px"><table id="liqTabla"></table></div>
+      <div class="note" id="liqNota" style="display:none"></div>
+    </div>
+  </div>
 
   <!-- CIERRES MENSUALES -->
   <div class="panel" id="pCierres">
@@ -1421,6 +1441,140 @@ async function borrarAcelerador(id){
   await supabase.from('aceleradores').delete().eq('id', id);
   await cargarAceleradores();
   await cargarSeguimiento();
+}
+
+
+/* ---------- Liquidación de oficina aliada / freelance ---------- */
+let LIQ_CARGADO = false;
+let LIQ = { persona:'', mes:'', filas:[] };
+function escLiq(t){ return String(t==null?'':t).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function nombreMesLiq(mesISO){
+  const [y,m] = mesISO.split('-').map(Number);
+  const n = new Date(y, m-1, 1).toLocaleDateString('es-CO', { month:'long', year:'numeric' });
+  return n.charAt(0).toUpperCase() + n.slice(1);
+}
+async function abrirLiquidacion(){
+  if(!LIQ_CARGADO){
+    const { data } = await supabase.from('perfiles').select('id,nombre').eq('rol','oficina_aliada').order('nombre');
+    document.getElementById('liqPersona').innerHTML = (data||[]).map(o=>`<option value="${o.id}">${escLiq(o.nombre)}</option>`).join('') || '<option value="">Sin oficinas aliadas</option>';
+    document.getElementById('liqMes').value = mesActualISO();
+    LIQ_CARGADO = true;
+  }
+  await generarLiquidacion();
+}
+async function generarLiquidacion(){
+  const persona = document.getElementById('liqPersona').value;
+  const mes = document.getElementById('liqMes').value || mesActualISO();
+  if(!persona){ LIQ = { persona:'', mes, filas:[] }; renderLiquidacion(); return; }
+  const { data } = await supabase.from('creditos')
+    .select('*, entidades:entidad_id(nombre, entidad_paga)')
+    .eq('titular_id', persona).eq('estado','desembolsado')
+    .gte('fecha_desembolso', mes+'-01').lt('fecha_desembolso', primerDiaMesSiguiente(mes))
+    .order('fecha_desembolso');
+  const { data: perf } = await supabase.from('perfiles').select('id,nombre');
+  const nombres = {}; (perf||[]).forEach(p=>{ nombres[p.id] = p.nombre; });
+  LIQ = {
+    persona, mes,
+    nombre: (document.getElementById('liqPersona').selectedOptions[0]||{}).textContent || '',
+    filas: (data||[]).map(c=>{
+      const total = millonesExactos(c.monto) * (+c.entidades?.entidad_paga || 0);
+      const comision = +c.puntos_calculados || 0;
+      return {
+        cliente: c.cliente||'', cedula: c.cedula_cliente||'', entidad: c.entidades?.nombre||'',
+        monto: parseMonto(c.monto), fecha: c.fecha_desembolso||'',
+        analista: c.analista_gestion_id ? (nombres[c.analista_gestion_id]||'') : '',
+        totalEntidad: total, pct: total ? comision/total*100 : 0, comision,
+      };
+    }),
+  };
+  renderLiquidacion();
+}
+function columnasLiq(){
+  const det = document.getElementById('liqDetalle').checked;
+  const cols = [
+    { t:'Cliente', v:f=>f.cliente, tipo:'txt' }, { t:'Cédula', v:f=>f.cedula, tipo:'txt' },
+    { t:'Entidad', v:f=>f.entidad, tipo:'txt' }, { t:'Monto', v:f=>f.monto, tipo:'$' },
+    { t:'Fecha desembolso', v:f=>f.fecha, tipo:'txt' }, { t:'Analista responsable', v:f=>f.analista||'—', tipo:'txt' },
+  ];
+  if(det){ cols.push({ t:'Comisión de la entidad', v:f=>f.totalEntidad, tipo:'$' }, { t:'%', v:f=>Math.round(f.pct*10)/10, tipo:'%' }); }
+  cols.push({ t:'Valor a liquidar', v:f=>f.comision, tipo:'$' });
+  return cols;
+}
+function celdaLiq(c, f){
+  const v = c.v(f);
+  if(c.tipo==='$') return fmtMoney(v);
+  if(c.tipo==='%') return v + '%';
+  return escLiq(v);
+}
+function totalesLiq(){
+  return {
+    n: LIQ.filas.length,
+    monto: LIQ.filas.reduce((s,f)=>s+f.monto,0),
+    totalEntidad: LIQ.filas.reduce((s,f)=>s+f.totalEntidad,0),
+    comision: LIQ.filas.reduce((s,f)=>s+f.comision,0),
+  };
+}
+function tablaLiqHTML(){
+  const cols = columnasLiq(), t = totalesLiq();
+  const fila = (f)=>'<tr>' + cols.map(c=>'<td>'+celdaLiq(c,f)+'</td>').join('') + '</tr>';
+  const pie = '<tr style="font-weight:800;background:#F7FBFC">' + cols.map((c,i)=>{
+    if(i===0) return '<td>Total ('+t.n+' crédito'+(t.n===1?'':'s')+')</td>';
+    if(c.t==='Monto') return '<td>'+fmtMoney(t.monto)+'</td>';
+    if(c.t==='Comisión de la entidad') return '<td>'+fmtMoney(t.totalEntidad)+'</td>';
+    if(c.t==='Valor a liquidar') return '<td>'+fmtMoney(t.comision)+'</td>';
+    return '<td></td>';
+  }).join('') + '</tr>';
+  return '<thead><tr>' + cols.map(c=>'<th>'+c.t+'</th>').join('') + '</tr></thead><tbody>' +
+    (LIQ.filas.length ? LIQ.filas.map(fila).join('') + pie : '<tr><td colspan="'+cols.length+'" style="text-align:center;color:var(--muted)">Sin créditos desembolsados en este mes.</td></tr>') + '</tbody>';
+}
+function renderLiquidacion(){
+  document.getElementById('liqTabla').innerHTML = tablaLiqHTML();
+  const nota = document.getElementById('liqNota');
+  if(LIQ.filas.length){
+    nota.style.display = '';
+    nota.innerHTML = '<b style="display:inline">Total a liquidar a ' + escLiq(LIQ.nombre) + ' en ' + nombreMesLiq(LIQ.mes) + ': ' + fmtMoney(totalesLiq().comision) + '</b>. Solo incluye créditos desembolsados dentro de ese mes.';
+  } else nota.style.display = 'none';
+}
+function descargarLiquidacionCSV(){
+  if(!LIQ.filas.length){ alert('No hay créditos desembolsados en ese mes para descargar.'); return; }
+  const cols = columnasLiq(), t = totalesLiq();
+  const q = v => '"' + String(v).replace(/"/g,'""') + '"';
+  const valor = (c,f)=>{ const v = c.v(f); return c.tipo==='$' ? Math.round(v) : v; };
+  const lineas = [
+    [q('Liquidación - ' + LIQ.nombre), q(nombreMesLiq(LIQ.mes))].join(';'),
+    '',
+    cols.map(c=>q(c.t)).join(';'),
+    ...LIQ.filas.map(f=>cols.map(c=>{ const v = valor(c,f); return typeof v==='number' ? v : q(v); }).join(';')),
+    cols.map((c,i)=>{
+      if(i===0) return q('Total');
+      if(c.t==='Monto') return Math.round(t.monto);
+      if(c.t==='Comisión de la entidad') return Math.round(t.totalEntidad);
+      if(c.t==='Valor a liquidar') return Math.round(t.comision);
+      return '""';
+    }).join(';'),
+  ];
+  const blob = new Blob(['﻿' + lineas.join('\r\n')], { type:'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'liquidacion_' + LIQ.nombre.replace(/[^A-Za-z0-9]+/g,'_') + '_' + LIQ.mes + '.csv';
+  document.body.appendChild(a); a.click(); a.remove();
+}
+function imprimirLiquidacion(){
+  if(!LIQ.filas.length){ alert('No hay créditos desembolsados en ese mes para imprimir.'); return; }
+  const w = window.open('', '_blank');
+  if(!w){ alert('El navegador bloqueó la ventana. Permite ventanas emergentes para esta página e intenta de nuevo.'); return; }
+  w.document.write('<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>Liquidación ' + escLiq(LIQ.nombre) + ' ' + LIQ.mes + '</title>' +
+    '<style>body{font-family:Arial,sans-serif;color:#16293A;margin:28px}h1{font-size:20px;margin:0}h2{font-size:14px;font-weight:400;color:#6B7A89;margin:4px 0 18px}' +
+    'table{width:100%;border-collapse:collapse;font-size:12px}th{background:#16293A;color:#fff;text-align:left;padding:8px;font-size:11px}td{padding:8px;border-bottom:1px solid #E6EAEE}' +
+    '.tot{margin-top:18px;font-size:15px;font-weight:700}img{height:34px;margin-bottom:12px;display:block}</style></head><body>' +
+    '<img src="logo-credixpertos.png" alt="Credixpertos">' +
+    '<h1>Liquidación — ' + escLiq(LIQ.nombre) + '</h1><h2>' + nombreMesLiq(LIQ.mes) + ' · créditos desembolsados en el mes</h2>' +
+    '<table>' + tablaLiqHTML() + '</table>' +
+    '<div class="tot">Total a liquidar: ' + fmtMoney(totalesLiq().comision) + '</div>' +
+    '</body></html>');
+  w.document.close();
+  w.focus();
+  setTimeout(()=>w.print(), 400);
 }
 
 /* ---------- Asistencia (módulo compartido en asistencia.js) ---------- */
