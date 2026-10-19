@@ -61,6 +61,8 @@ label{display:block;font-size:10.5px;font-weight:700;color:var(--muted);text-tra
     <button class="btn btn-salir" onclick="cerrarSesion()">Salir</button>
   </div>
 
+  <div id="ruletaRanking"></div>
+
   <!-- MIS CLIENTES (mercado natural propio) -->
   <div class="card">
     <h2>1 · Tus créditos radicados (clientes que tú misma traes)</h2>
@@ -126,7 +128,7 @@ label{display:block;font-size:10.5px;font-weight:700;color:var(--muted);text-tra
     </div>
     <div class="row-actions">
       <button class="btn btn-ghost" onclick="guardarCC()">Guardar mis datos</button>
-      <button class="btn btn-primary" onclick="imprimirCC()">Descargar cuenta de cobro</button>
+      <button class="btn btn-primary" onclick="imprimirCC()">📄 Descargar cuenta de cobro</button>
     </div>
     <div class="note">La cuenta de cobro muestra el valor total a pagar — nunca la tarifa por punto ni el porcentaje exacto.</div>
   </div>
@@ -145,40 +147,41 @@ label{display:block;font-size:10.5px;font-weight:700;color:var(--muted);text-tra
 
 <div class="print-doc" id="printCC">
   <div style="max-width:680px;margin:0 auto;padding:30px;font-family:'DM Sans',sans-serif">
-    <div style="background:linear-gradient(135deg,#16293A,#0E6472);color:white;padding:22px 28px;border-radius:12px;margin-bottom:20px">
-      <div style="font-size:11px;font-weight:700;letter-spacing:2px;color:#1AD4E0">CREDIXPERTOS</div>
-      <div style="font-family:'Manrope',sans-serif;font-size:22px;font-weight:800">Cuenta de cobro</div>
+    <div style="background:linear-gradient(135deg,#0A2540,#1a3d5c);color:white;padding:22px 28px;border-radius:12px;margin-bottom:20px">
+      <div style="font-size:11px;font-weight:700;letter-spacing:2px;color:#00B4C8">CREDIXPERTOS</div>
+      <div style="font-family:Georgia,serif;font-size:22px">Cuenta de cobro</div>
       <div style="font-size:12px;color:rgba(255,255,255,0.65)" id="ccFecha"></div>
     </div>
     <table style="width:100%;border-collapse:collapse;margin-bottom:20px">
-      <tr><td style="padding:6px 0;color:#6B7A89;font-size:13px;width:35%">Nombre</td><td style="padding:6px 0;font-weight:700;color:#16293A" id="ccPdfNombre">—</td></tr>
-      <tr><td style="padding:6px 0;color:#6B7A89;font-size:13px">Cédula</td><td style="padding:6px 0;font-weight:700;color:#16293A" id="ccPdfCedula">—</td></tr>
-      <tr><td style="padding:6px 0;color:#6B7A89;font-size:13px">Cuenta de pago</td><td style="padding:6px 0;font-weight:700;color:#16293A" id="ccPdfCuenta">—</td></tr>
+      <tr><td style="padding:6px 0;color:#6B7280;font-size:13px;width:35%">Nombre</td><td style="padding:6px 0;font-weight:700;color:#0A2540" id="ccPdfNombre">—</td></tr>
+      <tr><td style="padding:6px 0;color:#6B7280;font-size:13px">Cédula</td><td style="padding:6px 0;font-weight:700;color:#0A2540" id="ccPdfCedula">—</td></tr>
+      <tr><td style="padding:6px 0;color:#6B7280;font-size:13px">Cuenta de pago</td><td style="padding:6px 0;font-weight:700;color:#0A2540" id="ccPdfCuenta">—</td></tr>
     </table>
     <table style="width:100%;border-collapse:collapse;margin-bottom:14px">
-      <thead><tr style="background:#16293A;color:white;font-size:11px"><th style="padding:6px;text-align:left">Cliente</th><th style="padding:6px;text-align:left">Cédula</th><th style="padding:6px;text-align:left">Monto</th><th style="padding:6px;text-align:left">Valor generado</th></tr></thead>
+      <thead><tr style="background:#0A2540;color:white;font-size:11px"><th style="padding:6px;text-align:left">Cliente</th><th style="padding:6px;text-align:left">Cédula</th><th style="padding:6px;text-align:left">Monto</th><th style="padding:6px;text-align:left">Valor generado</th></tr></thead>
       <tbody id="ccPdfDetalle"></tbody>
     </table>
     <div style="background:#F8F6F1;border-radius:10px;padding:14px 18px">
-      <div style="display:flex;justify-content:space-between;font-size:13px;color:#6B7A89"><span>Por procesar al equipo</span><b id="ccPdfEquipo">$0</b></div>
-      <div style="display:flex;justify-content:space-between;font-size:13px;color:#6B7A89"><span>Por tus propios clientes</span><b id="ccPdfPropios">$0</b></div>
-      <div id="ccPdfFilaAcelerador" style="display:none;justify-content:space-between;font-size:13px;color:#1F9254;margin-top:4px"><span id="ccPdfAceleradorLbl">Acelerador</span><b id="ccPdfAcelerador">$0</b></div>
-      <div style="display:flex;justify-content:space-between;font-size:15px;border-top:1px solid #E6EAEE;padding-top:8px;margin-top:6px"><span style="color:#16293A;font-weight:700">Valor a pagar</span><b style="color:#16293A;font-size:20px" id="ccPdfValor">$0</b></div>
+      <div style="display:flex;justify-content:space-between;font-size:13px;color:#6B7280"><span>Por procesar al equipo</span><b id="ccPdfEquipo">$0</b></div>
+      <div style="display:flex;justify-content:space-between;font-size:13px;color:#6B7280"><span>Por tus propios clientes</span><b id="ccPdfPropios">$0</b></div>
+      <div id="ccPdfFilaAcelerador" style="display:none;justify-content:space-between;font-size:13px;color:#166534;margin-top:4px"><span id="ccPdfAceleradorLbl">Acelerador</span><b id="ccPdfAcelerador">$0</b></div>
+      <div style="display:flex;justify-content:space-between;font-size:15px;border-top:1px solid #E2D9CF;padding-top:8px;margin-top:6px"><span style="color:#0A2540;font-weight:700">Valor a pagar</span><b style="color:#0A2540;font-size:20px" id="ccPdfValor">$0</b></div>
     </div>
     <div style="display:flex;gap:40px;margin-top:50px">
       <div style="flex:1;text-align:center">
-        <div style="border-top:1px solid #16293A;padding-top:6px;font-size:12px;color:#16293A;font-weight:700" id="ccPdfFirmaNombre">—</div>
-        <div style="font-size:11px;color:#6B7A89">Firma de la analista</div>
+        <div style="border-top:1px solid #1C1C2E;padding-top:6px;font-size:12px;color:#0A2540;font-weight:700" id="ccPdfFirmaNombre">—</div>
+        <div style="font-size:11px;color:#6B7280">Firma de la analista</div>
       </div>
       <div style="flex:1;text-align:center">
-        <div style="border-top:1px solid #16293A;padding-top:6px;font-size:12px;color:#16293A;font-weight:700">Sebastián Molina Quintero</div>
-        <div style="font-size:11px;color:#6B7A89">Firma del gerente comercial</div>
+        <div style="border-top:1px solid #1C1C2E;padding-top:6px;font-size:12px;color:#0A2540;font-weight:700">Sebastián Molina Quintero</div>
+        <div style="font-size:11px;color:#6B7280">Firma del gerente comercial</div>
       </div>
     </div>
   </div>
 </div>
 
 <script src="config.js"></script>
+<script src="ruleta.js"></script>
 <script>
 let PERFIL = null;
 let ENTIDADES = [];
@@ -225,6 +228,7 @@ async function iniciar(){
   PERFIL = sesion.perfil;
   document.getElementById('nombreAnalista').textContent = 'Hola, ' + PERFIL.nombre;
   document.getElementById('app').style.display = '';
+  montarRuletaRanking(document.getElementById('ruletaRanking'), { perfilId: PERFIL.id });
 
   MES_SELECCIONADO = mesActualISO();
   const selMes = document.getElementById('selMes');
@@ -361,8 +365,8 @@ function renderRadicados(filas){
       <td>${selectEntidad(r.entidad_id)}</td>
       <td>${selectOrigen(r.origen)}</td>
       <td style="font-weight:700;color:var(--brand)" data-estimado-cell="${r.id}">${estimado===null?'—':fmtMoney(estimado)}</td>
-      <td><button class="btn btn-gold" onclick="marcarDesembolsado('${r.id}')">Desembolsó</button></td>
-      <td><button class="del-x" onclick="borrarCredito('${r.id}')">Eliminar</button></td>
+      <td><button class="btn btn-gold" onclick="marcarDesembolsado('${r.id}')">✓ Desembolsó</button></td>
+      <td><button class="del-x" onclick="borrarCredito('${r.id}')">✕</button></td>
     </tr>`;
   }).join('') || `<tr><td colspan="9" style="text-align:center;color:var(--muted)">Sin créditos radicados pendientes.</td></tr>`;
 }
@@ -376,7 +380,7 @@ function renderDesembolsados(filas){
       <td>${ENTIDADES.find(e=>e.id===r.entidad_id)?.nombre||'—'}</td>
       <td>${NOMBRES_ORIGEN[r.origen]||'—'}</td>
       <td style="font-weight:700;color:var(--brand)">${fmtMoney(r.puntos_calculados)}</td>
-      <td><button class="del-x" onclick="borrarCredito('${r.id}')">Eliminar</button></td>
+      <td><button class="del-x" onclick="borrarCredito('${r.id}')">✕</button></td>
     </tr>`).join('') || `<tr><td colspan="8" style="text-align:center;color:var(--muted)">Sin desembolsos en ${etiquetaDeMes(MES_SELECCIONADO)}.</td></tr>`;
 }
 async function cargarEquipo(){
@@ -471,11 +475,11 @@ async function imprimirCC(){
   document.getElementById('ccPdfValor').textContent = fmtMoney(valorEquipo + valorPropios + totalAcelerador);
   document.getElementById('ccPdfDetalle').innerHTML = filas.map(r=>`
     <tr>
-      <td style="padding:5px 6px;border-bottom:1px solid #E6EAEE">${r.cliente||'—'}</td>
-      <td style="padding:5px 6px;border-bottom:1px solid #E6EAEE">${r.cedula_cliente||'—'}</td>
-      <td style="padding:5px 6px;border-bottom:1px solid #E6EAEE">${fmtMoney(parseMonto(r.monto))}</td>
-      <td style="padding:5px 6px;border-bottom:1px solid #E6EAEE">${fmtMoney(r.puntos_calculados)}</td>
-    </tr>`).join('') || `<tr><td colspan="4" style="padding:8px;text-align:center;color:#6B7A89">Sin clientes propios desembolsados este mes.</td></tr>`;
+      <td style="padding:5px 6px;border-bottom:1px solid #E2D9CF">${r.cliente||'—'}</td>
+      <td style="padding:5px 6px;border-bottom:1px solid #E2D9CF">${r.cedula_cliente||'—'}</td>
+      <td style="padding:5px 6px;border-bottom:1px solid #E2D9CF">${fmtMoney(parseMonto(r.monto))}</td>
+      <td style="padding:5px 6px;border-bottom:1px solid #E2D9CF">${fmtMoney(r.puntos_calculados)}</td>
+    </tr>`).join('') || `<tr><td colspan="4" style="padding:8px;text-align:center;color:#6B7280">Sin clientes propios desembolsados este mes.</td></tr>`;
   document.getElementById('printCC').classList.add('imprimir-activo');
   setTimeout(()=>window.print(), 60);
   setTimeout(()=>document.getElementById('printCC').classList.remove('imprimir-activo'), 500);
