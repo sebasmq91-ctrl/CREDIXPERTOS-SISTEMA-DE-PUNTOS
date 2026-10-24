@@ -52,6 +52,7 @@ label{display:block;font-size:10.5px;font-weight:700;color:var(--muted);text-tra
 .print-doc{display:none;}
 @media print{ body>.wrap{display:none;} .print-doc.imprimir-activo{display:block;} }
 </style>
+<link rel="stylesheet" href="movil.css">
 </head>
 <body>
 <div class="wrap" id="app" style="display:none">
@@ -141,7 +142,7 @@ label{display:block;font-size:10.5px;font-weight:700;color:var(--muted);text-tra
     </div>
     <div class="row-actions">
       <button class="btn btn-ghost" onclick="guardarCC()">Guardar mis datos</button>
-      <button class="btn btn-primary" onclick="imprimirCC()">📄 Descargar cuenta de cobro</button>
+      <button class="btn btn-primary" onclick="imprimirCC()">Descargar cuenta de cobro</button>
     </div>
   </div>
 
@@ -183,6 +184,7 @@ label{display:block;font-size:10.5px;font-weight:700;color:var(--muted);text-tra
   </div>
 </div>
 
+<script src="movil.js"></script>
 <script src="config.js"></script>
 <script src="ruleta.js"></script>
 <script>
@@ -364,7 +366,7 @@ function renderProgreso(desembolsados, cfgMes){
   }
   const faltaN1 = CFG.nivel1_pts-total, faltaN2 = CFG.nivel2_pts-total, faltaN3 = CFG.nivel3_pts-total;
   let txt = '';
-  if(nivelAlcanzado===3) txt = '🏆 Nivel 3 alcanzado — tu garantizado ya está en el techo.';
+  if(nivelAlcanzado===3) txt = 'Nivel 3 alcanzado — tu garantizado ya está en el techo.';
   else if(nivelAlcanzado===2) txt = `Nivel 2 alcanzado — te faltan ${fmtNum(faltaN3)} puntos para el Nivel 3`;
   else if(nivelAlcanzado===1) txt = `Nivel 1 alcanzado — te faltan ${fmtNum(faltaN2)} puntos para el Nivel 2`;
   else txt = `Te faltan ${fmtNum(faltaN1)} puntos para tu primer garantizado`;
