@@ -294,7 +294,7 @@ async function renderMes(){
   const inicio = MES_SELECCIONADO + '-01';
   const fin = primerDiaMesSiguiente(MES_SELECCIONADO);
   const { data: desembolsados } = await supabase.from('creditos')
-    .select('*, entidades:entidad_id(nombre,tipo,entidad_paga,pago_planta)')
+    .select('*, entidades:entidad_id(nombre,tipo,entidad_paga,pago_planta_natural, pago_planta_empresa)')
     .eq('titular_id', PERFIL.id).eq('estado', 'desembolsado')
     .gte('fecha_desembolso', inicio).lt('fecha_desembolso', fin).order('fecha_desembolso');
   renderDesembolsados(desembolsados || []);
@@ -473,7 +473,7 @@ async function guardarCC(){
 async function imprimirCC(){
   const inicio = MES_SELECCIONADO + '-01';
   const fin = primerDiaMesSiguiente(MES_SELECCIONADO);
-  const { data: desembolsados } = await supabase.from('creditos').select('*, entidades:entidad_id(nombre,tipo,entidad_paga,pago_planta)')
+  const { data: desembolsados } = await supabase.from('creditos').select('*, entidades:entidad_id(nombre,tipo,entidad_paga,pago_planta_natural, pago_planta_empresa)')
     .eq('titular_id', PERFIL.id).eq('estado', 'desembolsado')
     .gte('fecha_desembolso', inicio).lt('fecha_desembolso', fin)
     .order('fecha_desembolso');

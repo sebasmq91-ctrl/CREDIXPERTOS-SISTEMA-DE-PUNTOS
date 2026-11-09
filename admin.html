@@ -219,7 +219,8 @@ label{display:block;font-size:10.5px;font-weight:700;color:var(--muted);text-tra
           <th class="col-std" style="width:11%">Pts. Campaña manual</th>
           <th class="col-std" style="width:11%">Pts. Campaña IA</th>
           <th class="col-std" style="width:11%">Pts. analista (equipo)</th>
-          <th class="col-planta" style="width:22%">Pago a asesor de planta ($/M)</th>
+          <th class="col-planta" style="width:15%">Planta: cliente natural ($/M)</th>
+          <th class="col-planta" style="width:15%">Planta: cliente empresa ($/M)</th>
           <th style="width:11%">Entidad paga ($/M)</th>
           <th style="width:6%">Activa</th>
           <th style="width:10%"></th>
@@ -557,7 +558,7 @@ async function guardarNuevaConfig(){
 async function cargarDesembolsosDelMes(){
   const inicioMes = mesActualISO() + '-01';
   const { data } = await supabase.from('creditos')
-    .select('*, perfiles:titular_id(nombre,rol,tipo_asesor), entidades:entidad_id(nombre,tipo,entidad_paga,pago_planta)')
+    .select('*, perfiles:titular_id(nombre,rol,tipo_asesor), entidades:entidad_id(nombre,tipo,entidad_paga,pago_planta_natural, pago_planta_empresa)')
     .eq('estado', 'desembolsado').gte('fecha_desembolso', inicioMes);
   return data || [];
 }
@@ -601,7 +602,8 @@ function filaEntidadHTML(e, pts, tarifaAnalista){
       <td class="col-std"><input type="number" id="pts-campana_manual-${e.id}" value="${pts.campana_manual ?? ''}"></td>
       <td class="col-std"><input type="number" id="pts-campana_ia-${e.id}" value="${pts.campana_ia ?? ''}"></td>
       <td class="col-std"><input type="number" id="tarifa-analista-${e.id}" value="${tarifaAnalista ?? ''}" placeholder="0 si no se configura"></td>
-      <td class="col-planta"><input type="text" inputmode="decimal" value="${e.pago_planta==null?'':fmtMoney(e.pago_planta)}" placeholder="sin definir" onchange="cambiarEntidad(this,'pago_planta')"></td>
+      <td class="col-planta"><input type="text" inputmode="decimal" value="${e.pago_planta_natural==null?'':fmtMoney(e.pago_planta_natural)}" placeholder="sin definir" onchange="cambiarEntidad(this,'pago_planta_natural')"></td>
+      <td class="col-planta"><input type="text" inputmode="decimal" value="${e.pago_planta_empresa==null?'':fmtMoney(e.pago_planta_empresa)}" placeholder="sin definir" onchange="cambiarEntidad(this,'pago_planta_empresa')"></td>
       <td><input type="text" inputmode="decimal" value="${fmtMoney(e.entidad_paga||0)}" onchange="cambiarEntidad(this,'entidad_paga')"></td>
       <td style="text-align:center"><input type="checkbox" style="width:auto" ${e.activo?'checked':''} onchange="cambiarEntidad(this,'activo',true)"></td>
       <td style="white-space:nowrap">
@@ -766,7 +768,7 @@ function cambiarVistaPago(){
   const v = document.getElementById('selVistaPago').value;
   document.getElementById('pEntidades').classList.toggle('vista-planta', v==='planta');
   document.getElementById('notaVistaPago').textContent = v==='planta'
-    ? 'Lo que Credixpertos paga por cada millón desembolsado a un asesor de planta que cumple los dos colchones. Es editable.'
+    ? 'Lo que Credixpertos paga por cada millón desembolsado a un asesor de planta que cumple los dos colchones: una tarifa si el cliente es natural (suyo) y otra si es de la empresa (campañas y leads de Credixpertos). Es editable.'
     : '';
 }
 async function addEntidad(){
@@ -783,7 +785,7 @@ async function addEntidad(){
 async function cambiarEntidad(el, campo, esCheckbox){
   const id = el.closest('tr').dataset.id;
   let valor = esCheckbox ? el.checked : el.value;
-  if(campo==='entidad_paga' || campo==='pago_planta'){ valor = reformatearInputDinero(el); }
+  if(campo==='entidad_paga' || campo==='pago_planta_natural' || campo==='pago_planta_empresa'){ valor = reformatearInputDinero(el); }
   await supabase.from('entidades').update({ [campo]: valor, updated_at: new Date().toISOString() }).eq('id', id);
   // Actualizamos el dato en memoria (para que el cálculo de margen use
   // el valor recién guardado) y solo repintamos los números — la
@@ -898,7 +900,7 @@ let PERFILES_TODOS = []; // para poder abrir el modal aunque la persona no tenga
 async function cargarSeguimiento(){
   const inicioMes = mesActualISO() + '-01';
   const { data: creditos } = await supabase.from('creditos')
-    .select('*, perfiles:titular_id(nombre, rol, analista_id, tipo_asesor), entidades:entidad_id(nombre, tipo, entidad_paga, pago_planta)')
+    .select('*, perfiles:titular_id(nombre, rol, analista_id, tipo_asesor), entidades:entidad_id(nombre, tipo, entidad_paga, pago_planta_natural, pago_planta_empresa)')
     .or(`fecha_radicado.gte.${inicioMes},fecha_desembolso.gte.${inicioMes}`)
     .order('created_at', { ascending:false });
   CREDITOS_MES = creditos || [];
@@ -1141,7 +1143,7 @@ function comisionProyectadaCredito(c, tarifasOrigenMapa, cfg, valorPunto){
 async function calcularComisionEmpresaMes(){
   const inicioMes = mesActualISO() + '-01';
   const { data } = await supabase.from('creditos')
-    .select('*, perfiles:titular_id(nombre, rol), entidades:entidad_id(nombre, entidad_paga, pago_planta)')
+    .select('*, perfiles:titular_id(nombre, rol), entidades:entidad_id(nombre, entidad_paga, pago_planta_natural, pago_planta_empresa)')
     .or(`estado.eq.radicado,fecha_desembolso.gte.${inicioMes}`);
   const tarifasOrigenMapa = await cargarPuntosEntidadOrigen();
   const cfg = await configVigente();
@@ -1166,7 +1168,7 @@ async function cargarConsolidado(){
   // aquí también es ruido que no aporta nada día a día.
   const inicioMes = mesActualISO() + '-01';
   const { data } = await supabase.from('creditos')
-    .select('*, perfiles:titular_id(nombre, rol), entidades:entidad_id(nombre, entidad_paga, pago_planta), gestion:analista_gestion_id(nombre)')
+    .select('*, perfiles:titular_id(nombre, rol), entidades:entidad_id(nombre, entidad_paga, pago_planta_natural, pago_planta_empresa), gestion:analista_gestion_id(nombre)')
     .or(`estado.eq.radicado,fecha_desembolso.gte.${inicioMes}`)
     .order('created_at', { ascending:false });
   CONSOLIDADO_CREDITOS = data || [];
@@ -1258,7 +1260,7 @@ async function calcularCierreMes(mesISO){
   const fechaRef = ultimoDiaDelMes(mesISO);
 
   const { data } = await supabase.from('creditos')
-    .select('*, perfiles:titular_id(nombre, rol, tipo_asesor), entidades:entidad_id(nombre, tipo, entidad_paga, pago_planta)')
+    .select('*, perfiles:titular_id(nombre, rol, tipo_asesor), entidades:entidad_id(nombre, tipo, entidad_paga, pago_planta_natural, pago_planta_empresa)')
     .eq('estado', 'desembolsado')
     .gte('fecha_desembolso', inicio)
     .lt('fecha_desembolso', fin);
@@ -1521,7 +1523,7 @@ async function generarLiquidacion(){
   const mes = document.getElementById('liqMes').value || mesActualISO();
   if(!persona){ LIQ = { persona:'', mes, filas:[] }; renderLiquidacion(); return; }
   const { data } = await supabase.from('creditos')
-    .select('*, entidades:entidad_id(nombre, entidad_paga, pago_planta)')
+    .select('*, entidades:entidad_id(nombre, entidad_paga, pago_planta_natural, pago_planta_empresa)')
     .eq('titular_id', persona).eq('estado','desembolsado')
     .gte('fecha_desembolso', mes+'-01').lt('fecha_desembolso', primerDiaMesSiguiente(mes))
     .order('fecha_desembolso');

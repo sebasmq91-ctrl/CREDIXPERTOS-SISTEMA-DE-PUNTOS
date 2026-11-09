@@ -146,8 +146,15 @@ function calcBonoAsesor(totalPuntos, cfg, ajuste){
 const TIPOS_ASESOR = { free:'Asesor free', planta:'Planta (nómina)', call_center:'Call center' };
 const PLANTA_REGLA = { desdeMes:'2026-11', colchonBancoMillones:250, colchonFinancieraMillones:100, pctSoloFinanciera:0.10, pctSoloBanco:0.05 };
 
+// Tarifa de planta de un crédito: depende de si el cliente es natural
+// (origen mercado_natural) o de la empresa (campañas, leads de Credixpertos).
+function tarifaPlanta(c){
+  const e = c.entidades || {};
+  return c.origen==='mercado_natural' ? e.pago_planta_natural : e.pago_planta_empresa;
+}
+
 // desembolsosDelMes: créditos desembolsados del asesor en ese mes, cada
-// uno con monto y entidades {tipo, entidad_paga, pago_planta}.
+// uno con monto y entidades {tipo, entidad_paga, pago_planta_natural, pago_planta_empresa}.
 function evaluarAjusteAsesor(tipo, mesISO, desembolsosDelMes){
   const R = PLANTA_REGLA;
   tipo = tipo || 'free';
@@ -160,8 +167,9 @@ function evaluarAjusteAsesor(tipo, mesISO, desembolsosDelMes){
     const m = millonesExactos(c.monto);
     if(e.tipo==='BANCO') bancoM += m; else if(e.tipo==='FINANCIERA') finM += m;
     baseCausada += m * (+e.entidad_paga || 0);
-    if(e.pago_planta==null) sinTarifa++;
-    pagoPlanta += m * (+e.pago_planta || 0);
+    const tarifa = tarifaPlanta(c);
+    if(tarifa==null) sinTarifa++;
+    pagoPlanta += m * (+tarifa || 0);
   });
   const cumpleBanco = bancoM >= R.colchonBancoMillones;
   const cumpleFin = finM >= R.colchonFinancieraMillones;
@@ -180,7 +188,7 @@ function comisionCreditoAsesor(c, aj, valorPunto){
   if(aj && aj.aplica){
     const e = c.entidades || {};
     const m = millonesExactos(c.monto);
-    if(aj.caso==='completo') return m * (+e.pago_planta || 0);
+    if(aj.caso==='completo') return m * (+tarifaPlanta(c) || 0);
     return m * (+e.entidad_paga || 0) * aj.factor;
   }
   return (+c.puntos_calculados||0) * valorPunto;
