@@ -102,6 +102,7 @@ label{display:block;font-size:10.5px;font-weight:700;color:var(--muted);text-tra
   <!-- PROGRESO -->
   <div class="card">
     <h2>4 · Tu progreso en <span id="mesEtiquetaProgreso">—</span></h2>
+    <div id="plantaBox" style="display:none"></div>
     <div class="payout">
       <div>
         <div class="lbl">Puntos acumulados en <span id="mesEtiquetaHero">—</span></div>
@@ -293,7 +294,7 @@ async function renderMes(){
   const inicio = MES_SELECCIONADO + '-01';
   const fin = primerDiaMesSiguiente(MES_SELECCIONADO);
   const { data: desembolsados } = await supabase.from('creditos')
-    .select('*, entidades:entidad_id(nombre)')
+    .select('*, entidades:entidad_id(nombre,tipo,entidad_paga,pago_planta)')
     .eq('titular_id', PERFIL.id).eq('estado', 'desembolsado')
     .gte('fecha_desembolso', inicio).lt('fecha_desembolso', fin).order('fecha_desembolso');
   renderDesembolsados(desembolsados || []);
@@ -345,12 +346,37 @@ function renderDesembolsados(filas){
       <td><button class="del-x" onclick="borrarCredito('${r.id}')">✕</button></td>
     </tr>`).join('') || `<tr><td colspan="8" style="text-align:center;color:var(--muted)">Sin desembolsos en ${etiquetaDeMes(MES_SELECCIONADO)}.</td></tr>`;
 }
+// Colchón de planta: muestra cuánto lleva en bancos y en financieras
+// frente al mínimo del mes y qué porcentaje de su comisión se le paga.
+function renderPlantaBox(aj){
+  const box = document.getElementById('plantaBox');
+  if(!aj || !aj.aplica){ box.style.display = 'none'; box.innerHTML = ''; return; }
+  box.style.display = '';
+  const R = PLANTA_REGLA;
+  const barra = (lbl, hecho, meta, ok)=>{
+    const pct = Math.min(100, meta>0 ? hecho/meta*100 : 0);
+    return `<div style="margin-bottom:10px"><div style="display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:4px"><span><b>${lbl}</b></span><span>${fmtNum(hecho)} M de ${fmtNum(meta)} M ${ok?'· cumplido':''}</span></div><div style="height:9px;background:#E5E7EB;border-radius:6px;overflow:hidden"><div style="height:100%;width:${pct}%;background:${ok?'#16A34A':'#0891B2'}"></div></div></div>`;
+  };
+  const color = aj.caso==='completo' ? '#16A34A' : (aj.caso==='ninguno' ? '#B45309' : '#0891B2');
+  box.innerHTML = `<div style="border:1px solid #D5DEE7;border-radius:12px;padding:12px 14px;margin-bottom:14px;background:#fff">
+    <div style="font-size:12px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">Tu colchón del mes (desembolsado)</div>
+    ${barra('Bancos', aj.bancoM, R.colchonBancoMillones, aj.cumpleBanco)}
+    ${barra('Financieras', aj.finM, R.colchonFinancieraMillones, aj.cumpleFin)}
+    <div style="font-size:13px;color:${color};font-weight:700;margin-top:4px">${aj.texto}</div>
+    <div style="font-size:13px;margin-top:6px;color:#334155">${(aj.faltaBancoM>0||aj.faltaFinM>0)
+      ? 'Te falta para cumplir: '+[aj.faltaBancoM>0?fmtNum(aj.faltaBancoM)+' M en bancos':'', aj.faltaFinM>0?fmtNum(aj.faltaFinM)+' M en financieras':''].filter(Boolean).join(' y ')+'.'
+      : 'Colchón completo cumplido este mes.'}</div>
+    <div style="font-size:11.5px;color:#64748B;margin-top:4px">Para comisionar completo debes cumplir los dos colchones en el mes; ahí se te paga por cada millón desembolsado según la tarifa de cada entidad. Si cumples solo financieras se paga el ${Math.round(R.pctSoloFinanciera*100)}% del total de las comisiones que generaron todos tus créditos, y si cumples solo bancos, el ${Math.round(R.pctSoloBanco*100)}%.</div>
+  </div>`;
+}
 function renderProgreso(desembolsados, cfgMes){
   const total = desembolsados.reduce((s,r)=>s+(+r.puntos_calculados||0),0);
   document.getElementById('totalPuntos').textContent = fmtNum(total);
   const CFG = cfgMes;
   if(!CFG){ return; }
-  const { comisionVariable, garantizado, bono, nivelAlcanzado } = calcBonoAsesor(total, CFG);
+  const ajuste = evaluarAjusteAsesor(PERFIL.tipo_asesor, MES_SELECCIONADO, desembolsados);
+  renderPlantaBox(ajuste);
+  const { comisionVariable, garantizado, bono, nivelAlcanzado } = calcBonoAsesor(total, CFG, ajuste);
   const totalAcelerador = ACELERADORES_MES.reduce((s,a)=>s+(+a.monto||0),0);
   document.getElementById('bonoValor').textContent = fmtMoney(bono + totalAcelerador);
   document.getElementById('bonoComision').textContent = fmtMoney(comisionVariable);
@@ -447,14 +473,15 @@ async function guardarCC(){
 async function imprimirCC(){
   const inicio = MES_SELECCIONADO + '-01';
   const fin = primerDiaMesSiguiente(MES_SELECCIONADO);
-  const { data: desembolsados } = await supabase.from('creditos').select('*')
+  const { data: desembolsados } = await supabase.from('creditos').select('*, entidades:entidad_id(nombre,tipo,entidad_paga,pago_planta)')
     .eq('titular_id', PERFIL.id).eq('estado', 'desembolsado')
     .gte('fecha_desembolso', inicio).lt('fecha_desembolso', fin)
     .order('fecha_desembolso');
   const filas = desembolsados || [];
   const total = filas.reduce((s,r)=>s+(+r.puntos_calculados||0),0);
   const cfgMes = await configVigente(ultimoDiaDelMes(MES_SELECCIONADO));
-  const { comisionVariable, garantizado, bono, nivelAlcanzado } = calcBonoAsesor(total, cfgMes);
+  const ajusteCC = evaluarAjusteAsesor(PERFIL.tipo_asesor, MES_SELECCIONADO, filas);
+  const { comisionVariable, garantizado, bono, nivelAlcanzado } = calcBonoAsesor(total, cfgMes, ajusteCC);
   const { data: aceleradoresMes } = await supabase.from('aceleradores').select('monto, motivo')
     .eq('perfil_id', PERFIL.id).eq('mes', MES_SELECCIONADO);
   const totalAcelerador = (aceleradoresMes||[]).reduce((s,a)=>s+(+a.monto||0),0);
