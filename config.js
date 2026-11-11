@@ -107,13 +107,91 @@ async function tarifasOrigenVigentes(){
 // Misma regla que ya usaban las herramientas anteriores: la comisión
 // variable se paga completa desde el primer punto; el garantizado se
 // suma al llegar a cada nivel (no es acumulativo entre niveles).
-function calcBonoAsesor(totalPuntos, cfg){
-  const comisionVariable = totalPuntos * cfg.valor_punto;
+function calcBonoAsesor(totalPuntos, cfg, ajuste){
+  let comisionVariable = totalPuntos * cfg.valor_punto;
   let garantizado = 0, nivelAlcanzado = 0;
   if(totalPuntos >= cfg.nivel3_pts){ garantizado = cfg.nivel3_bono; nivelAlcanzado = 3; }
   else if(totalPuntos >= cfg.nivel2_pts){ garantizado = cfg.nivel2_bono; nivelAlcanzado = 2; }
   else if(totalPuntos >= cfg.nivel1_pts){ garantizado = cfg.nivel1_bono; nivelAlcanzado = 1; }
-  return { comisionVariable, garantizado, bono: comisionVariable+garantizado, nivelAlcanzado };
+  // Desde la fecha de la regla, el garantizado es solo del call center.
+  if(ajuste && ajuste.sinGarantizado){ garantizado = 0; nivelAlcanzado = 0; }
+  // Planta (nómina): no usa puntos ni garantizado.
+  if(ajuste && ajuste.aplica){
+    comisionVariable = (ajuste.caso==='completo')
+      ? (ajuste.pagoPlanta || 0)                          // tarifa de cada entidad (editable en Entidades)
+      : (ajuste.baseCausada || 0) * ajuste.factor;        // % de las comisiones causadas
+    garantizado = 0; nivelAlcanzado = 0;
+  }
+  return { comisionVariable, garantizado, bono: comisionVariable+garantizado, nivelAlcanzado, ajuste: ajuste || null };
+}
+
+/* ============================================================
+   TIPOS DE ASESOR (desde noviembre 2026)
+   - free: puntos x valor del punto, sin garantizado.
+   - call_center: puntos x valor del punto + garantizado por nivel
+     (el garantizado es solo de call center).
+   - planta (nómina): sin puntos ni garantizado. Debe cumplir en el mes
+     un colchón de millones DESEMBOLSADOS en bancos y en financieras:
+       cumple los dos            -> comisión completa = suma de
+                                    (millones x tarifa de planta de cada
+                                    entidad); la tarifa se edita en
+                                    Entidades, vista "Planta"
+       cumple financieras solo   -> 10% del TOTAL de comisiones causadas
+       cumple bancos solo        -> 5% del TOTAL de comisiones causadas
+       no cumple ninguno         -> 0
+     ("comisiones causadas" = lo que las entidades pagan por todos sus
+     desembolsos del mes, bancos y financieras juntos).
+   Los meses anteriores a desdeMes no cambian (liquidaciones ya hechas).
+   ============================================================ */
+const TIPOS_ASESOR = { free:'Asesor free', planta:'Planta (nómina)', call_center:'Call center' };
+const PLANTA_REGLA = { desdeMes:'2026-11', colchonBancoMillones:250, colchonFinancieraMillones:100, pctSoloFinanciera:0.10, pctSoloBanco:0.05 };
+
+// Tarifa de planta de un crédito: depende de si el cliente es natural
+// (origen mercado_natural) o de la empresa (campañas, leads de Credixpertos).
+function tarifaPlanta(c){
+  const e = c.entidades || {};
+  return c.origen==='mercado_natural' ? e.pago_planta_natural : e.pago_planta_empresa;
+}
+
+// desembolsosDelMes: créditos desembolsados del asesor en ese mes, cada
+// uno con monto y entidades {tipo, entidad_paga, pago_planta_natural, pago_planta_empresa}.
+function evaluarAjusteAsesor(tipo, mesISO, desembolsosDelMes){
+  const R = PLANTA_REGLA;
+  tipo = tipo || 'free';
+  const vigente = (mesISO||'') >= R.desdeMes;
+  const base = { tipo, aplica:false, caso:'completo', factor:1, texto:'', sinGarantizado: vigente && tipo!=='call_center' };
+  if(tipo!=='planta' || !vigente) return base;
+  let bancoM = 0, finM = 0, baseCausada = 0, pagoPlanta = 0, sinTarifa = 0;
+  (desembolsosDelMes||[]).forEach(c=>{
+    const e = c.entidades || {};
+    const m = millonesExactos(c.monto);
+    if(e.tipo==='BANCO') bancoM += m; else if(e.tipo==='FINANCIERA') finM += m;
+    baseCausada += m * (+e.entidad_paga || 0);
+    const tarifa = tarifaPlanta(c);
+    if(tarifa==null) sinTarifa++;
+    pagoPlanta += m * (+tarifa || 0);
+  });
+  const cumpleBanco = bancoM >= R.colchonBancoMillones;
+  const cumpleFin = finM >= R.colchonFinancieraMillones;
+  const r = Object.assign(base, { aplica:true, bancoM, finM, baseCausada, pagoPlanta, sinTarifa, cumpleBanco, cumpleFin,
+    faltaBancoM: Math.max(0, R.colchonBancoMillones-bancoM), faltaFinM: Math.max(0, R.colchonFinancieraMillones-finM) });
+  if(cumpleBanco && cumpleFin){ r.caso='completo'; r.factor=1; r.texto='Cumples el colchón en bancos y financieras: comisionas completo según la tarifa de cada entidad'; }
+  else if(cumpleFin){ r.caso='solo_financiera'; r.factor=R.pctSoloFinanciera; r.texto='Cumples financieras pero no bancos: '+Math.round(R.pctSoloFinanciera*100)+'% de las comisiones causadas'; }
+  else if(cumpleBanco){ r.caso='solo_banco'; r.factor=R.pctSoloBanco; r.texto='Cumples bancos pero no financieras: '+Math.round(R.pctSoloBanco*100)+'% de las comisiones causadas'; }
+  else { r.caso='ninguno'; r.factor=0; r.texto='Aún no cumples el colchón: sin comisión'; }
+  return r;
+}
+
+// Comisión de un crédito puntual del asesor, según su tipo/ajuste
+// (para el detalle por crédito del cierre).
+function comisionCreditoAsesor(c, aj, valorPunto){
+  if(aj && aj.aplica){
+    const e = c.entidades || {};
+    const m = millonesExactos(c.monto);
+    if(aj.caso==='completo') return m * (+tarifaPlanta(c) || 0);
+    return m * (+e.entidad_paga || 0) * aj.factor;
+  }
+  return (+c.puntos_calculados||0) * valorPunto;
 }
 
 /* ============================================================
