@@ -1244,7 +1244,7 @@ async function renderConsolidado(){
       <td>${c.entidades?.nombre||'—'}</td>
       <td>${c.origen ? NOMBRES_ORIGEN[c.origen] : '—'}</td>
       <td><span class="pill ${c.estado==='desembolsado'?'pill-des':'pill-rad'}">${c.estado==='desembolsado'?'Desembolsado':'Radicado'}</span></td>
-      <td>${c.estado==='desembolsado' ? (c.fecha_desembolso||'—') : (c.fecha_radicado||'—')}</td>
+      <td>${c.estado==='desembolsado' ? `<input type="date" value="${c.fecha_desembolso||''}" title="Fecha de desembolso: puedes corregirla" onchange="cambiarFechaDesembolso(this)">` : (c.fecha_radicado||'—')}</td>
       <td style="font-weight:700">${fmtMoney(comisionTitular)}${c.estado==='radicado' ? ' <span style="color:var(--muted);font-weight:400">(proy.)</span>' : ''}</td>
       <td style="font-weight:700">${fmtMoney(comisionEmpresa)}${c.estado==='radicado' ? ' <span style="color:var(--muted);font-weight:400">(proy.)</span>' : ''}</td>
       <td>${fmtMoney(total)}</td>
@@ -1284,14 +1284,15 @@ async function calcularCierreMes(mesISO){
   const filasPorAsesorMes = {}, tipoPorAsesorMes = {};
   let costoAnalistaPropios = 0;
   let costoOficinaAliada = 0;
+  const pesosPropiosPorId = {}; // analista (propios) y oficina aliada: ya vienen en pesos
   desembolsos.forEach(c=>{
     const rol = c.perfiles?.rol;
     const id = c.titular_id;
     nombrePorId[id] = c.perfiles?.nombre;
     rolPorId[id] = rol;
     montoPorPersona[id] = (montoPorPersona[id]||0) + parseMonto(c.monto);
-    if(rol==='analista'){ costoAnalistaPropios += (+c.puntos_calculados||0); return; }
-    if(rol==='oficina_aliada'){ costoOficinaAliada += (+c.puntos_calculados||0); return; }
+    if(rol==='analista'){ costoAnalistaPropios += (+c.puntos_calculados||0); pesosPropiosPorId[id] = (pesosPropiosPorId[id]||0) + (+c.puntos_calculados||0); return; }
+    if(rol==='oficina_aliada'){ costoOficinaAliada += (+c.puntos_calculados||0); pesosPropiosPorId[id] = (pesosPropiosPorId[id]||0) + (+c.puntos_calculados||0); return; }
     if(rol==='asesor'){
       puntosPorAsesor[id] = (puntosPorAsesor[id]||0) + (+c.puntos_calculados||0);
       (filasPorAsesorMes[id] = filasPorAsesorMes[id] || []).push(c);
@@ -1301,6 +1302,7 @@ async function calcularCierreMes(mesISO){
 
   let costoAsesores = 0;
   const comisionPorAsesor = {};
+  const bonoDetallePorAsesor = {};
   const ajustePorAsesor = {};
   Object.keys(puntosPorAsesor).forEach(id=>{
     const aj = evaluarAjusteAsesor(tipoPorAsesorMes[id], mesISO, filasPorAsesorMes[id]);
@@ -1308,8 +1310,10 @@ async function calcularCierreMes(mesISO){
   });
   if(cfg){
     Object.entries(puntosPorAsesor).forEach(([id,pts])=>{
-      const bono = calcBonoAsesor(pts, cfg, evaluarAjusteAsesor(tipoPorAsesorMes[id], mesISO, filasPorAsesorMes[id])).bono;
+      const rb = calcBonoAsesor(pts, cfg, ajustePorAsesor[id]);
+      const bono = rb.bono;
       comisionPorAsesor[id] = bono;
+      bonoDetallePorAsesor[id] = { variable: bono - rb.garantizado, garantizado: rb.garantizado };
       costoAsesores += bono;
     });
   }
@@ -1323,6 +1327,8 @@ async function calcularCierreMes(mesISO){
     const { comisionTotal } = await calcularComisionEquipoAnalista(asesorIds, a.id, mesISO);
     comisionEquipoPorAnalista[a.id] = comisionTotal;
     costoAnalistaEquipoTotal += comisionTotal;
+    nombrePorId[a.id] = nombrePorId[a.id] || a.nombre;
+    rolPorId[a.id] = rolPorId[a.id] || 'analista';
   }
 
   // Aceleradores otorgados para este mes: salen de la caja de
@@ -1333,6 +1339,8 @@ async function calcularCierreMes(mesISO){
     .select('*, perfiles:perfil_id(nombre, rol)').eq('mes', mesISO);
   const etiquetaRolAcc = { asesor:'Asesor', analista:'Analista' };
   const aceleradores = (aceleradoresMes||[]).map(a=>({
+    perfil_id: a.perfil_id,
+    tipo: a.tipo || 'acelerador',
     nombre: a.perfiles?.nombre || '—',
     rol: etiquetaRolAcc[a.perfiles?.rol] || a.perfiles?.rol || '—',
     monto: +a.monto || 0,
@@ -1375,7 +1383,94 @@ async function calcularCierreMes(mesISO){
     };
   }).sort((a,b)=> (a.fecha||'').localeCompare(b.fecha||''));
 
-  return { ingresoTotal, costoTotal, margen, porCredito, aceleradores };
+  // ---- Pagos del mes por persona (para la contadora) ----
+  const personasMap = {};
+  const persona = (id, nombre, rol)=> (personasMap[id] = personasMap[id] || { id, nombre: nombre||'—', rol, tipo:'', porCreditos:0, equipo:0, garantizadoNivel:0, asistencia:0, bonos:0, total:0 });
+  Object.keys(bonoDetallePorAsesor).forEach(id=>{
+    const x = persona(id, nombrePorId[id], 'Asesor');
+    x.tipo = TIPOS_ASESOR[tipoPorAsesorMes[id]] || tipoPorAsesorMes[id] || '';
+    x.porCreditos = bonoDetallePorAsesor[id].variable;
+    x.garantizadoNivel = bonoDetallePorAsesor[id].garantizado;
+  });
+  Object.keys(pesosPropiosPorId).forEach(id=>{
+    const x = persona(id, nombrePorId[id], rolPorId[id]==='oficina_aliada' ? 'Oficina aliada' : 'Analista');
+    x.porCreditos = pesosPropiosPorId[id];
+  });
+  Object.keys(comisionEquipoPorAnalista).forEach(id=>{
+    if(!(comisionEquipoPorAnalista[id]>0)) return;
+    const x = persona(id, nombrePorId[id], 'Analista');
+    x.equipo = comisionEquipoPorAnalista[id];
+  });
+  aceleradores.forEach(a=>{
+    const x = persona(a.perfil_id, a.nombre, a.rol);
+    if(a.tipo==='garantizado') x.asistencia += a.monto; else x.bonos += a.monto;
+  });
+  const personas = Object.values(personasMap).map(x=>({ ...x, total: x.porCreditos + x.equipo + x.garantizadoNivel + x.asistencia + x.bonos }))
+    .sort((a,b)=> a.rol.localeCompare(b.rol) || a.nombre.localeCompare(b.nombre));
+
+  // ---- Comisiones que faltan: radicado al cierre del mes y aún sin desembolsar en esa fecha ----
+  const { data: pendData } = await supabase.from('creditos')
+    .select('*, perfiles:titular_id(nombre, rol), entidades:entidad_id(nombre, entidad_paga)')
+    .lt('fecha_radicado', fin)
+    .or(`estado.eq.radicado,fecha_desembolso.gte.${fin}`);
+  const tarifasOrigenMapa = await cargarPuntosEntidadOrigen();
+  const pendientes = (pendData||[]).map(c=>{
+    const titular = comisionProyectadaCredito({ ...c, estado:'radicado' }, tarifasOrigenMapa, cfg, valorPunto);
+    const ingreso = millonesExactos(c.monto) * (+c.entidades?.entidad_paga||0);
+    return {
+      cliente: c.cliente || '—', titular: c.perfiles?.nombre || '—', entidad: c.entidades?.nombre || '—',
+      monto: parseMonto(c.monto), fecha: c.fecha_radicado || '',
+      comisionTitular: titular, comisionEmpresa: ingreso - titular, total: ingreso,
+    };
+  }).sort((a,b)=> (a.fecha||'').localeCompare(b.fecha||''));
+
+  return { ingresoTotal, costoTotal, margen, porCredito, aceleradores, personas, pendientes };
+}
+
+// Recalcula y guarda de nuevo el cierre de un mes que ya estaba cerrado
+// (por ejemplo después de corregir la fecha de un desembolso).
+async function recalcularCierre(mesISO){
+  const { data: existe } = await supabase.from('cierres_mensuales').select('mes').eq('mes', mesISO).maybeSingle();
+  if(!existe) return false;
+  const cierre = await calcularCierreMes(mesISO);
+  const { error } = await supabase.from('cierres_mensuales').update({
+    ingreso_total: cierre.ingresoTotal, costo_total: cierre.costoTotal, margen: cierre.margen,
+    detalle: { porCredito: cierre.porCredito, aceleradores: cierre.aceleradores, personas: cierre.personas, pendientes: cierre.pendientes },
+  }).eq('mes', mesISO);
+  if(error) throw error;
+  return true;
+}
+
+async function cambiarFechaDesembolso(el){
+  const id = el.closest('tr').dataset.id;
+  const c = CONSOLIDADO_CREDITOS.find(x=>x.id===id);
+  const vieja = c ? c.fecha_desembolso : '';
+  const nueva = el.value;
+  if(!nueva){ el.value = vieja||''; return; }
+  if(nueva === vieja) return;
+  if(c && c.fecha_radicado && nueva < c.fecha_radicado){
+    alert('La fecha de desembolso no puede ser anterior a la fecha de radicación ('+c.fecha_radicado+').');
+    el.value = vieja||''; return;
+  }
+  const mesActual = mesActualISO();
+  if(nueva.slice(0,7) > mesActual){ alert('No puedes poner una fecha de un mes futuro.'); el.value = vieja||''; return; }
+  const cambiaMes = vieja && vieja.slice(0,7) !== nueva.slice(0,7);
+  const msg = 'Cambiar la fecha de desembolso de ' + (c?.cliente||'este crédito') + ' de ' + (vieja||'—') + ' a ' + nueva + '.' +
+    (cambiaMes ? '\n\nEl crédito pasa de mes: se recalculan las comisiones, los niveles y el cierre de los meses afectados. Si el mes nuevo ya está cerrado, el cierre se actualiza.' : '');
+  if(!confirm(msg)){ el.value = vieja||''; return; }
+  const { error } = await supabase.from('creditos').update({ fecha_desembolso: nueva }).eq('id', id);
+  if(error){ alert('No se pudo cambiar la fecha: '+error.message); el.value = vieja||''; return; }
+  const avisos = [];
+  for(const m of new Set([ (vieja||'').slice(0,7), nueva.slice(0,7) ])){
+    if(m && m < mesActual){
+      try{ if(await recalcularCierre(m)) avisos.push(m); }catch(e){ console.error(e); alert('La fecha quedó guardada, pero no se pudo recalcular el cierre de '+m+': '+e.message); }
+    }
+  }
+  await cargarSeguimiento();
+  await cargarConsolidado();
+  await cargarCierres();
+  if(avisos.length) alert('Fecha actualizada. Se recalculó el cierre de: ' + avisos.join(', ') + '.');
+  else if(cambiaMes) alert('Fecha actualizada. El crédito ahora cuenta en ' + nueva.slice(0,7) + '.');
 }
 
 // Revisa si hay meses ya terminados sin cerrar y los cierra solo —
@@ -1400,7 +1495,7 @@ async function cerrarMesesPendientes(){
           ingreso_total: cierre.ingresoTotal,
           costo_total: cierre.costoTotal,
           margen: cierre.margen,
-          detalle: { porCredito: cierre.porCredito, aceleradores: cierre.aceleradores },
+          detalle: { porCredito: cierre.porCredito, aceleradores: cierre.aceleradores, personas: cierre.personas, pendientes: cierre.pendientes },
         });
       }catch(e){ console.error('No se pudo cerrar el mes '+mesIter, e); }
     }
@@ -1425,7 +1520,7 @@ async function cargarCierres(){
       </tr>`).join('');
     const aceleradoresFilas = (c.detalle?.aceleradores||[]).map(a=>`
       <tr>
-        <td style="padding-left:24px" colspan="2">${a.nombre} <span style="color:var(--muted)">· ${a.rol}</span></td>
+        <td style="padding-left:24px" colspan="2">${a.nombre} <span style="color:var(--muted)">· ${a.rol}${a.tipo==='garantizado'?' · garantizado por asistencia':''}</span></td>
         <td colspan="2">${a.motivo}</td>
         <td style="font-weight:700;color:#8A6D23">${fmtMoney(a.monto)}</td>
         <td colspan="2">${a.fecha||'—'}</td>
@@ -1439,6 +1534,11 @@ async function cargarCierres(){
         <td style="color:var(--cyan)">Ver detalle ▾</td>
       </tr>
       <tr style="display:none"><td colspan="5" style="padding:0 0 10px">
+        <div style="padding:8px 24px;display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn btn-gold" onclick="imprimirInformeContable('${c.mes}')">Informe para contabilidad (imprimir)</button>
+          <button class="btn btn-ghost" onclick="descargarInformeContableCSV('${c.mes}')">Descargar Excel (CSV)</button>
+          <button class="btn btn-ghost" onclick="recalcularCierreUI('${c.mes}')">Recalcular este cierre</button>
+        </div>
         <table style="margin:0">
           <thead><tr><th style="padding-left:24px">Cliente</th><th>Titular</th><th>Entidad</th><th>Monto</th><th>Comisión titular</th><th>Comisión empresa</th><th>Total</th></tr></thead>
           <tbody>${detalleFilas || '<tr><td colspan="7" style="text-align:center;color:var(--muted)">Sin movimientos ese mes.</td></tr>'}</tbody>
@@ -1450,6 +1550,81 @@ async function cargarCierres(){
         </table>` : ''}
       </td></tr>`;
   }).join('') || `<tr><td colspan="5" style="text-align:center;color:var(--muted)">Todavía no hay meses cerrados — se cierran solos apenas termine el mes en curso.</td></tr>`;
+}
+
+/* ---------- Informe para contabilidad ---------- */
+// Informe de un mes cerrado: pagos por persona (comisión por créditos,
+// comisión de equipo, garantizado por nivel, garantizado por asistencia
+// y aceleradores), detalle de bonos y asistencia, y las comisiones que
+// todavía faltan por desembolsar. Se calcula en vivo con los datos de
+// hoy, así refleja cualquier fecha corregida.
+async function armarInformeContable(mesISO){
+  const c = await calcularCierreMes(mesISO);
+  const suma = (arr,k)=> arr.reduce((s,x)=>s+(+x[k]||0),0);
+  const secciones = [];
+  const pagados = suma(c.personas,'total');
+  secciones.push({ titulo:'Resumen', cols:['Concepto','Valor'], filas:[
+    ['Comisiones que pagaron las entidades por créditos desembolsados en el mes', c.ingresoTotal],
+    ['Total pagado a personas (comisiones, bonos y garantizados)', pagados],
+    ['Margen de Credixpertos', c.margen],
+  ], moneda:[1] });
+  secciones.push({ titulo:'Pagos del mes por persona', cols:['Persona','Rol','Tipo','Comisión por créditos','Comisión de equipo','Garantizado por nivel','Garantizado por asistencia','Aceleradores y bonos','Total a pagar'],
+    filas: c.personas.map(p=>[p.nombre,p.rol,p.tipo||'—',p.porCreditos,p.equipo,p.garantizadoNivel,p.asistencia,p.bonos,p.total]),
+    moneda:[3,4,5,6,7,8],
+    pie:['Total','','',suma(c.personas,'porCreditos'),suma(c.personas,'equipo'),suma(c.personas,'garantizadoNivel'),suma(c.personas,'asistencia'),suma(c.personas,'bonos'),pagados] });
+  secciones.push({ titulo:'Bonos y pagos por asistencia', cols:['Persona','Rol','Concepto','Motivo','Valor','Fecha'],
+    filas: c.aceleradores.map(a=>[a.nombre,a.rol,a.tipo==='garantizado'?'Garantizado por asistencia':'Acelerador',a.motivo,a.monto,a.fecha||'']),
+    moneda:[4], pie:['Total','','','',suma(c.aceleradores,'monto'),''] });
+  secciones.push({ titulo:'Comisiones pagadas por crédito (desembolsados en el mes)', cols:['Cliente','Titular','Rol','Entidad','Fecha desembolso','Monto','Comisión titular','Comisión empresa','Total entidad'],
+    filas: c.porCredito.map(x=>[x.cliente,x.titular,x.rol,x.entidad,x.fecha||'',x.monto,x.comisionTitular,x.comisionEmpresa,x.total]),
+    moneda:[5,6,7,8], pie:['Total','','','','',suma(c.porCredito,'monto'),suma(c.porCredito,'comisionTitular'),suma(c.porCredito,'comisionEmpresa'),suma(c.porCredito,'total')] });
+  secciones.push({ titulo:'Comisiones que faltan (radicados sin desembolsar al cierre del mes, estimado)', cols:['Cliente','Titular','Entidad','Fecha radicación','Monto','Comisión titular (proy.)','Comisión empresa (proy.)','Total entidad (proy.)'],
+    filas: c.pendientes.map(x=>[x.cliente,x.titular,x.entidad,x.fecha,x.monto,x.comisionTitular,x.comisionEmpresa,x.total]),
+    moneda:[4,5,6,7], pie:['Total','','','',suma(c.pendientes,'monto'),suma(c.pendientes,'comisionTitular'),suma(c.pendientes,'comisionEmpresa'),suma(c.pendientes,'total')] });
+  return { mes: mesISO, titulo: 'Informe para contabilidad - ' + nombreMesLiq(mesISO), secciones };
+}
+function informeHTML(inf){
+  const celda = (sec,i,v)=> (sec.moneda||[]).includes(i) ? fmtMoney(v) : escLiq(v);
+  return inf.secciones.map(sec=>{
+    const filas = sec.filas.length ? sec.filas.map(f=>'<tr>'+f.map((v,i)=>'<td>'+celda(sec,i,v)+'</td>').join('')+'</tr>').join('') +
+      (sec.pie ? '<tr style="font-weight:800;background:#F7FBFC">'+sec.pie.map((v,i)=>'<td>'+(typeof v==='number'?fmtMoney(v):escLiq(v))+'</td>').join('')+'</tr>' : '')
+      : '<tr><td colspan="'+sec.cols.length+'" style="text-align:center;color:#6B7A89">Sin movimientos.</td></tr>';
+    return '<h3>'+escLiq(sec.titulo)+'</h3><table><thead><tr>'+sec.cols.map(c=>'<th>'+escLiq(c)+'</th>').join('')+'</tr></thead><tbody>'+filas+'</tbody></table>';
+  }).join('');
+}
+async function imprimirInformeContable(mesISO){
+  const w = window.open('', '_blank');
+  if(!w){ alert('El navegador bloqueó la ventana. Permite ventanas emergentes para esta página e intenta de nuevo.'); return; }
+  w.document.write('<p style="font-family:Arial;padding:24px">Preparando el informe...</p>');
+  let inf;
+  try{ inf = await armarInformeContable(mesISO); }catch(e){ w.close(); alert('No se pudo armar el informe: '+e.message); return; }
+  w.document.open();
+  w.document.write('<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>'+escLiq(inf.titulo)+'</title>'+
+    '<style>@page{size:landscape;margin:12mm}body{font-family:Arial,sans-serif;color:#16293A;margin:20px}h1{font-size:20px;margin:0 0 4px}h2{font-size:13px;font-weight:400;color:#6B7A89;margin:0 0 14px}h3{font-size:14px;margin:22px 0 6px}'+
+    'table{width:100%;border-collapse:collapse;font-size:11px}th{background:#16293A;color:#fff;text-align:left;padding:6px;font-size:10px}td{padding:6px;border-bottom:1px solid #E6EAEE}tr{break-inside:avoid}</style></head><body>'+
+    '<h1>'+escLiq(inf.titulo)+'</h1><h2>Credixpertos - generado el '+hoyISO()+'</h2>'+informeHTML(inf)+'</body></html>');
+  w.document.close(); w.focus(); setTimeout(()=>w.print(), 400);
+}
+async function descargarInformeContableCSV(mesISO){
+  let inf;
+  try{ inf = await armarInformeContable(mesISO); }catch(e){ alert('No se pudo armar el informe: '+e.message); return; }
+  const q = v => '"'+String(v==null?'':v).replace(/"/g,'""')+'"';
+  const lineas = [q(inf.titulo), ''];
+  inf.secciones.forEach(sec=>{
+    lineas.push(q(sec.titulo));
+    lineas.push(sec.cols.map(q).join(';'));
+    sec.filas.forEach(f=>lineas.push(f.map(v=>typeof v==='number'?Math.round(v):q(v)).join(';')));
+    if(sec.filas.length && sec.pie) lineas.push(sec.pie.map(v=>typeof v==='number'?Math.round(v):q(v)).join(';'));
+    lineas.push('');
+  });
+  const blob = new Blob(['﻿'+lineas.join('\r\n')], { type:'text/csv;charset=utf-8' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = 'informe_contabilidad_'+mesISO+'.csv'; document.body.appendChild(a); a.click(); a.remove();
+}
+async function recalcularCierreUI(mesISO){
+  if(!confirm('Recalcular el cierre de '+mesISO+' con los datos de hoy (fechas y valores corregidos). El cierre guardado se reemplaza.')) return;
+  try{ await recalcularCierre(mesISO); await cargarCierres(); alert('Cierre de '+mesISO+' recalculado.'); }
+  catch(e){ alert('No se pudo recalcular: '+e.message); }
 }
 
 /* ---------- Aceleradores ---------- */
